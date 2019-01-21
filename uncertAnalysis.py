@@ -12,7 +12,7 @@ from scipy.special import gammainc, erfinv, gammaincc
 from scipy.stats import chisquare
 from analyseData import anaData
 import multiprocessing as multi
-import cPickle as pck
+import _pickle as pck
 import logging
 import matplotlib.pyplot as plt
 
@@ -33,8 +33,8 @@ class uncertAnalysis(anaData):
 		self.specuncert = None
 		self.intflux = np.zeros((8,2))
 		self.fitrms = np.zeros((8,2))
-		self.fitparam = ['','','','','','','','']
-		self.fitparamuncert = ['','','','','','','','']
+		self.fitparam = [None, None, None, None, None, None, None]
+		self.fitparamuncert = [None, None, None, None, None, None, None]
 		self.paramtable = None
 		self.originalspec = None
 		self.originalspectralaxis = None
@@ -116,7 +116,7 @@ class uncertAnalysis(anaData):
 			R = self.allspec.shape[1]
 			newspec = np.empty((self.allspec.shape))
 			newnois = np.empty((self.allnoise.shape))
-			for i in xrange(R):
+			for i in range(R):
 				newspec[:,i] = (self.allspec[:,i] - self.finalspec)**2
 				newnois[:,i] = (self.allnoise[:,i] - self.stackrms)**2
 

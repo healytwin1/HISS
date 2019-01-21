@@ -5,6 +5,7 @@ import astropy.constants as astcon
 import astropy.cosmology as astcos
 import astropy.modeling as astmod
 import astropy.units as astun
+import astropy.io.ascii as astasc
 import astropy.convolution as astcov
 import useful_functions as uf
 import matplotlib.pyplot as plt
@@ -95,7 +96,7 @@ class objSpec():
 			return False, cat
 		else:
 			self.stellarmass = (cat.catalogue['Stellar Mass'][n] * cat.catalogue['Stellar Mass'].unit).to(astun.Msun, log10)
-			logger.info('Logged stellar mass for %s'%str(cat.catalogue['Object ID'][n]))
+			# logger.info('Logged stellar mass for %s'%str(cat.catalogue['Object ID'][n]))
 			return True, cat
 
 
@@ -134,13 +135,10 @@ class objSpec():
 		filexist = os.path.isfile(cat.specloc+cat.catalogue['Filename'][n])
 		if filexist == True:
 			try:
-				if cat.rowdelim.lower() == "none":
-					data = np.loadtxt(cat.specloc+cat.catalogue['Filename'][n], usecols=cat.speccol,unpack=True, skiprows=cat.rowstart)
-				else:
-					data = np.loadtxt(cat.specloc+cat.catalogue['Filename'][n], usecols=cat.speccol,unpack=True, skiprows=cat.rowstart, delimiter=cat.rowdelim)
+				data = astasc.read(cat.specloc+cat.catalogue['Filename'][n], data_start=cat.rowstart)
 				checkZ, cat = self.__getSpectrumZOK(cat, n, runno)
-				checkDV, cat = self.__getSpectrumDVOK(data[0], cat, n)
-				checklen, cat = self.__getSpectrumlenOK(data[1], cat, n)
+				checkDV, cat = self.__getSpectrumDVOK(data[data.colnames[cat.speccol[0]]], cat, n)
+				checklen, cat = self.__getSpectrumlenOK(data[data.colnames[cat.speccol[1]]], cat, n)
 				if cat.stackunit == uf.gasfrac:
 					checkSM, cat = self.__getStellarMass(cat, n)
 				else:
@@ -162,12 +160,13 @@ class objSpec():
 					#------------------------------------------------------#
 					# self.origspec = self.__smoothData(data[1])*cat.fluxunit/cat.convfactor
 					################################
-					spec = data[1]*cat.fluxunit/cat.convfactor
+					spec = data[data.colnames[cat.speccol[1]]] * cat.fluxunit / cat.convfactor
+					spec[np.isnan(spec)] = 0.
 					self.origspec = spec.to(astun.Jy)
 					if cat.veltype == 'optical':
-						self.spectralspec = data[0]*cat.spectralunit 
+						self.spectralspec = data[data.colnames[cat.speccol[0]]].data*cat.spectralunit 
 					else: 
-						self.spectralspec = data[0]*(1.+self.redshift)*cat.spectralunit 
+						self.spectralspec = data[data.colnames[cat.speccol[0]]].data*(1.+self.redshift)*cat.spectralunit 
 					return cat
 				else:
 					self.status = 'incomplete'
@@ -177,6 +176,7 @@ class objSpec():
 				uf.earlyexit(self)
 				raise KeyboardInterrupt
 			except Exception as e:
+				print(cat.specloc+cat.catalogue['Filename'][n])
 				logger.error('Encountered an exception:', exc_info=True)
 				self.status = 'incomplete'
 			return cat
@@ -204,10 +204,10 @@ class objSpec():
 			if spec2 is None:
 				specv = spec.value
 				noisespec = np.zeros(l)*spec.unit
-				masked = np.append(specv[:s/2-cat.stackmask/2],specv[s/2+cat.stackmask/2:])*spec.unit
-				for i in xrange(l/2):
+				masked = np.append(specv[:int(s/2-cat.stackmask/2)],specv[int(s/2+cat.stackmask/2):])*spec.unit
+				for i in range(int(l/2)):
 					noisespec[i] = masked[i % len(masked)]
-					noisespec[-(i+1)] = masked[-(i+1) % len(masked)]
+					noisespec[int(-(i+1))] = masked[int(-(i+1) % len(masked))]
 				rms = np.std(noisespec)
 				return rms, noisespec
 			else:
@@ -215,13 +215,19 @@ class objSpec():
 				specv2 = spec2.value
 				noisespec = np.zeros(l)*spec.unit
 				noisespec2 = np.zeros(l)*spec2.unit
-				masked = np.append(specv[:s/2-cat.stackmask/2],specv[s/2+cat.stackmask/2:])*spec.unit
-				masked2 =  np.append(specv2[:s/2-cat.stackmask/2],specv2[s/2+cat.stackmask/2:])*spec2.unit
-				for i in xrange(l/2):
-					noisespec[i] = masked[i % len(masked)]
-					noisespec2[i] = masked2[i % len(masked)]
-					noisespec[-(i+1)] = masked[-(i+1) % len(masked)]
-					noisespec2[-(i+1)] = masked2[-(i+1) % len(masked)]
+				ine = int(s/2-cat.stackmask/2)
+				ins = int(s/2+cat.stackmask/2)
+				masked = np.append(specv[:ine],specv[ins:])*spec.unit
+				masked2 =  np.append(specv2[:ine],specv2[ins:])*spec2.unit
+
+				for i in range(l//2):
+					wwi = int(i % len(masked))
+					ssi = int(-(i+1) % len(masked))
+					eei = int(-(i+1))
+					noisespec[i] = masked[wwi]
+					noisespec2[i] = masked2[wwi]
+					noisespec[eei] = masked[ssi]
+					noisespec2[eei] = masked2[ssi]
 				rms = np.std(noisespec)
 				return rms, noisespec, noisespec2		
 
@@ -271,7 +277,7 @@ class objSpec():
 			cz_ran = astcon.c.to('km/s')*self.randredshift
 			galaxyloc = np.argmin(abs(axis - cz))
 			galaxyloc_ran = np.argmin(abs(axis - cz_ran))
-			for i in xrange(l):
+			for i in range(l):
 				self.shiftorigspec[i] = spec[(galaxyloc-cen+i) % l]
 				self.shiftrefspec[i] = spec[(galaxyloc_ran-cen+i) % l]
 
@@ -314,14 +320,14 @@ class objSpec():
 				r = cent
 			elif (tl-ol) > 0:
 				r = ceno
-			for i in xrange(r):
+			for i in range(r):
 				extendspec[cent+i] = spec[ceno+i]
 				extendspec[cent-(i+1)] = spec[ceno-(i+1)]
 				extendrefspec[cent+i] = rspec[ceno+i]
 				extendrefspec[cent-(i+1)] = rspec[ceno-(i+1)]
 			bl = int((tl - ol)/2)
 			nl = len(nspec)
-			for i in xrange(bl):
+			for i in range(bl):
 				extendspec[i] = nspec[i % nl]
 				extendspec[-(i+1)] = nspec[-(i+1) % nl]
 				extendrefspec[i] = nspec[i % nl]
@@ -343,6 +349,7 @@ class objSpec():
 	def callModule(self, cat, n, runno, axes=None, fig=None):
 		try:
 			cat = self.__getSpectrum(cat, n, runno)
+
 			if self.origspec is None:
 				return cat
 			else:
@@ -367,11 +374,12 @@ class objSpec():
 					uf.earlyexit(cat)
 					raise sys.exit()
 
-				startind = len(self.shiftorigspec)/2-cat.stackmask/2
-				endind = len(self.shiftorigspec)/2+1+cat.stackmask/2
+				startind = int(len(self.shiftorigspec)/2-cat.stackmask/2)
+				endind = int(len(self.shiftorigspec)/2+1+cat.stackmask/2)
 
 				intfluxspec = (self.shiftorigspec*self.dvkms).to(astun.Jy * astun.km/astun.s)
-				intflux = np.sum( intfluxspec.value[startind:endind+1] )
+				intflux = np.sum( intfluxspec.value[startind:endind] )
+
 				if runno == 0:
 					cat.outcatalogue.add_row([ cat.catalogue['Bin Number'][n], self.objid, cat.catalogue['Filename'][n], cat.catalogue['Redshift'][n], cat.catalogue['Redshift Uncertainty'][n], cat.catalogue['Stellar Mass'][n], cat.catalogue['Other Data'][n],  intflux ])
 				else:
@@ -404,7 +412,7 @@ class objStack(objSpec):
 	def __add__(self, other):
 		if other.extendspec is None or other.weight == 0.:
 			return self
-		else:
+		else:			
 			spec = np.add(self.spec, other.extendspec*other.weight)
 			refspec = np.add(self.refspec, other.extendrefspec*other.weight)
 			weight = self.weightsum + other.weight

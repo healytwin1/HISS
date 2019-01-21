@@ -62,7 +62,7 @@ class binnedCatalogue(inputCatalogue):
 		self.rbnum = []
 		self.linetype = other.linetype	
 		self.outcatalogue = other.outcatalogue
-		self.origrebinstatus = []
+		self.origrebinstatus = False
 		self.rebinstatus = False
 		self.smoothtype = other.smoothtype
 		self.smoothwin = other.smoothwin
@@ -80,6 +80,8 @@ class binnedCatalogue(inputCatalogue):
 		self.fullfuncnum = []
 		self.fullrbnum = []
 		self.fulloptnum = []
+		self.fullw50 = []
+		self.w50 = other.w50
 		self.suppress = other.suppress
 		self.clean = other.clean
 		self.progress = other.progress
@@ -90,6 +92,10 @@ class binnedCatalogue(inputCatalogue):
 		self.R = 0.75
 		self.stackmask = other.stackmask
 		self.restdv = other.restdv
+		self.mediandistance = other.mediandistance
+		self.avemass = other.avemass
+		self.avesm = other.avesm
+		self.medianz = other.medianz
 		
 
 
@@ -101,7 +107,7 @@ class binnedCatalogue(inputCatalogue):
 			self.binnedtable, self.binpartindicies = self.__bintable(self.fullcatalogue, colname, binwidth, binstart, binend)
 			return
 		else:
-			print '\n%s\t%s\t%s\t%s\t%s\n'%(self.fullcatalogue.colnames[0], self.fullcatalogue.colnames[1], self.fullcatalogue.colnames[2], self.fullcatalogue.colnames[3], self.fullcatalogue.colnames[4])
+			print ('\n%s\t%s\t%s\t%s\t%s\n'%(self.fullcatalogue.colnames[0], self.fullcatalogue.colnames[1], self.fullcatalogue.colnames[2], self.fullcatalogue.colnames[3], self.fullcatalogue.colnames[4]))
 			colname = raw_input('Please enter the exact Column name for the column containing the data to be binned: ')
 			binwidth = input('Please enter the bin width (in same units as the data to be binned): ')
 			binstart = input('Please enter the start of the bin range (in same units as the data to be binned): ')
@@ -170,6 +176,7 @@ class binnedCatalogue(inputCatalogue):
 			self.maxgalw = self.fullmaxgalw[n]*self.spectralunit
 			self.mask = self.fullmask[n]
 			self.rebinstatus = self.fullrebinstatus[n]
+			self.w50 = self.fullw50[n]
 		else:
 			self.maxgalw = self.origmaxgalw
 			self.mask = self.origmask
@@ -188,6 +195,7 @@ class binnedCatalogue(inputCatalogue):
 		self.fullmask.append(other.mask)
 		self.fullmaxgalw.append(other.maxgalw.value)
 		self.fullrebinstatus.append(other.rebinstatus)
+		self.fullw50.append(other.w50)
 		return self
 
 	def __radd__(self, other):

@@ -31,8 +31,8 @@ class inputCatalogue(object):
 		self.keys = None
 		self.catfilename = None
 		self.numcatspec = None
-		self.max_redshift = None
-		self.min_redshift = None
+		self.max_redshift = 0
+		self.min_redshift = 0
 		self.cosmology = astcos.FlatLambdaCDM(70, 0.3)
 		self.spectralunit = None
 		self.veltype = "optical"
@@ -80,6 +80,10 @@ class inputCatalogue(object):
 		self.latex = ''
 		self.uncerttype = 'redshift'
 		self.R = 0.75
+		self.mediandistance = 0.*astun.Mpc
+		self.avemass = 0. 
+		self.avesm = 1.
+		self.w50 = 0 * astun.km/astun.s
 
 
 	def updateconfig(self, config, maxgalw, rebinstatus, smoothtype, smoothwin, funcnum, optnum):
@@ -91,14 +95,15 @@ class inputCatalogue(object):
 		config['AnalysisOptions'] = optnum
 		configfile = json.dumps(config) 
 		optfile = open(self.outloc+'ConfigFile_'+self.runtime, 'w')
-		print >>optfile, configfile
+		# print >>optfile, configfile
+		optfile.write(configfile)
 		optfile.close()
 		return
 
 	def __fill_catalogue(self, table, cattable, colname, n, colnumlist=None):
 
 		if colnumlist is None:
-			colnum = raw_input("Please enter the column number of %s (if this column isn't necessary, please leave blank): "%colname)
+			colnum = input("Please enter the column number of %s (if this column isn't necessary, please leave blank): "%colname)
 		else:
 			if type(colnumlist[n]) != str:
 				colnum = str(colnumlist[n])
@@ -116,27 +121,28 @@ class inputCatalogue(object):
 				table.add_column(newcol)
 				return table
 			else:
-				print "There was a problem understanding the column number, please try again."
-				return fill_catalogue(table, colname, n, colnum)
+				print ("There was a problem understanding the column number, please try again.")
+				return self.__fill_catalogue(table, colname, n, colnum)
 
 
 	def __get_astropy_catalogue(self, config):
-		print "Initialising the catalogue file."
+		print ("Initialising the catalogue file.")
 		logger.info('Initialising the catalogue file.')
 
 		if uf.checkkeys(config, 'CatalogueFilename'):
 			self.catfilename = config['CatalogueFilename']
 		else:
-			self.catfilename = raw_input('Enter location and filename of catalogue file: ')
+			self.catfilename = input('Enter location and filename of catalogue file: ')
 		while not os.path.isfile(self.catfilename):
-			print 'The catalogue filename and location you have given does not exist.\n'
-			self.catfilename = raw_input('Enter location and filename of catalogue file: ')
+			print ('The catalogue filename and location you have given does not exist.\n')
+			self.catfilename = input('Enter location and filename of catalogue file: ')
 		try:
-			filetable = astasc.read(self.catfilename, format='csv')
+			filetable = astasc.read(self.catfilename) # [, format='csv'] took out 10/01/19 when line crashed with .dat on JD system
 		except KeyboardInterrupt:
+			uf.earlyexit(self)
 			raise sys.exit()
 		except:
-			print "Did not recognise the catalogue data type. Please check that your catalogue file is in the same format as the example catalogue file."
+			print ("Did not recognise the catalogue data type. Please check that your catalogue file is in the same format as the example catalogue file.")
 			logger.critical("Did not recognise the catalogue file data type.")
 			raise sys.exit()
 
@@ -145,29 +151,30 @@ class inputCatalogue(object):
 		else:
 			catcols = None
 			filetablenames = filetable.colnames
-			print '\nThe following columns are available:'
-			for u in xrange(len(filetablenames)):
-				print '%i: %s'%(u, filetablenames[u])
+			print ('\nThe following columns are available:')
+			for u in range(len(filetablenames)):
+				print ('%i: %s'%(u, filetablenames[u]))
 				
 		colnames = ['Object ID', 'Filename', 'Redshift', 'Redshift Uncertainty', 'Stellar Mass', 'Other Data']
 		catalogue = asttab.Table(names=['Dud'], dtype=['f8'], masked=True, data=[np.zeros(len(filetable))])
 
-		for o in xrange(len(colnames)):
+		for o in range(len(colnames)):
 			try:
 				self.__fill_catalogue(catalogue, filetable, colnames[o], o, catcols)
 			except KeyboardInterrupt:
 				uf.earlyexit(self)
 			except SystemExit():
+				uf.earlyexit(self)
 				raise sys.exit()
 			except:
-				print 'There was problem with entering the column number, please try again.\n'
+				print ('There was problem with entering the column number, please try again.\n')
 				self.__fill_catalogue(catalogue, filetable, colnames[o], o, None)
 		catalogue.remove_column('Dud')
 
 		## check units of the stellar mass
 		if True in catalogue['Stellar Mass'].mask:
 			if self.stackunit == uf.gasfrac:
-				print "\nTo stack in gas fraction, the catalogue file must include the Stellar Mass for each profile."
+				print ("\nTo stack in gas fraction, the catalogue file must include the Stellar Mass for each profile.")
 				logger.info('To stack in gas fraction, the catalogue file must include the Stellar Mass for each profile.')
 				uf.earlyexit(self)
 		else:
@@ -177,10 +184,14 @@ class inputCatalogue(object):
 			else:
 				catalogue['Stellar Mass'].unit = uf.msun
 
+			self.avesm = np.mean( catalogue['Stellar Mass'].data ) * catalogue['Stellar Mass'].unit
+
+
 		uniquecatalogue = asttab.unique(catalogue, keys='Object ID')
 		self.catalogue = uniquecatalogue
 		self.medianz = np.median( self.catalogue['Redshift'].data )
 		logger.info('Catalogue has been read in.')
+
 		return
 
 
@@ -190,20 +201,19 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'OutputLocation'):
 				self.outloc = config['OutputLocation']
 			else:
-				self.outloc = raw_input('Enter the full location to where you would like the output saved: ')
+				self.outloc = input('Enter the full location to where you would like the output saved: ')
 			if self.outloc[-1] != '/':
 				self.outloc +='/'
 				uf.checkpath(self.outloc)
 			else:
 				uf.checkpath(self.outloc)
-			uf.checkpath(self.outloc)
 			logger.info('Output location: %s'%self.outloc)
 		except KeyboardInterrupt:
 			uf.exit(self)
 		except SystemExit:
 			uf.exit(self)
 		except:
-			print 'There was a problem with entering the output location. Please try again.\n'
+			print ('There was a problem with entering the output location. Please try again.\n')
 			self.__getOutputLocation(config=False, data=None)
 
 
@@ -244,10 +254,10 @@ class inputCatalogue(object):
 				choice = config['SpectralAxisUnit']
 				self.veltype = config['VelocityType']
 			else:
-				print "\nWhat are the units of spectral axis of your spectra?\n\t1. Hertz (Hz)\n\t2. Kilo Hertz (kHz)\n\t3. Mega Hertz (MHz)\n\t4. Metres/Second (m/s)\n\t5. Kilometres/Second (km/s)\n\t6. Radio velocity (km/s)"
+				print ("\nWhat are the units of spectral axis of your spectra?\n\t1. Hertz (Hz)\n\t2. Kilo Hertz (kHz)\n\t3. Mega Hertz (MHz)\n\t4. Metres/Second (m/s)\n\t5. Kilometres/Second (km/s)\n\t6. Radio velocity (km/s)")
 				choice = input('Please enter the number of the applicable units: ')
 				if int(choice) in [4,5]:
-					self.veltype = raw_input('Please enter the velocity type [optical/radio]: ').lower()
+					self.veltype = input('Please enter the velocity type [optical/radio]: ').lower()
 			options = [astun.Hz, astun.kHz, astun.MHz, astun.m/astun.s, astun.km/astun.s]
 			self.spectralunit = options[int(choice)-1]
 
@@ -266,10 +276,10 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'SpectrumFluxUnit'):
 				choice = config['SpectrumFluxUnit']
 			else:
-				print "\nWhat are the flux units of your spectra?\n\t1. Jansky (Jy)\n\t2. Milli Jansky (mJy)\n\t3. Micro Jansky (uJy)\n\t4. Jansky/beam (Jy/beam)\n\t5. Milli Jansky/beam (mJy/beam)\n\t6. Micro Jansky/beam (uJy/beam)"
+				print ("\nWhat are the flux units of your spectra?\n\t1. Jansky (Jy)\n\t2. Milli Jansky (mJy)\n\t3. Micro Jansky (uJy)\n\t4. Jansky/beam (Jy/beam)\n\t5. Milli Jansky/beam (mJy/beam)\n\t6. Micro Jansky/beam (uJy/beam)")
 				choice = input('Please enter the number of the applicable units: ')
 			if type(choice) != int:
-				print 'Please only select one unit.'
+				print ('Please only select one unit.')
 				self.__getFluxUnits(None)
 			elif choice in [1,2,3]:
 				self.fluxunit = options[int(choice-1)]
@@ -296,18 +306,18 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'StackFluxUnit'):
 				choice = config['StackFluxUnit']
 			else:
-				print "\nWhat units do you want your final stacked profile to have?\n\t1. Jansky (Jy)\n\t2. Solar Masses (Msun)\n\t3. Gas Fraction (Msun/Msun)"
+				print ("\nWhat units do you want your final stacked profile to have?\n\t1. Jansky (Jy)\n\t2. Solar Masses (Msun)\n\t3. Gas Fraction (Msun/Msun)")
 				choice = input('Please enter the number of the applicable units: ')
 			if type(choice) != int:
-				print 'Please only select one unit.'
+				print ('Please only select one unit.')
 				self.__getStackUnits(None)
 			else:
 				options = [astun.Jy, uf.msun, uf.gasfrac]
 				self.stackunit = options[int(choice-1)]
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
-			uf.exit(self)
+			raise uf.exit(self)
 		except:
 			logger.error('There was an input error with your unit selection.', exc_info=True)
 			uf.earlyexit(self)
@@ -321,7 +331,7 @@ class inputCatalogue(object):
 			else:
 				self.channelwidth = input('Please enter the channel width (in the same units as the spectral axis): ') * self.spectralunit
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
 			uf.exit(self)
 		except:
@@ -333,18 +343,18 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'SpectrumLocation'):
 				self.specloc = config['SpectrumLocation']
 			else:
-				self.specloc = raw_input('Please enter the full path of the spectra location: ')
+				self.specloc = input('Please enter the full path of the spectra location: ')
 			if self.specloc[-1] != '/':
 				self.specloc +='/'
 			else:
 				h = 0
 			if not os.path.exists(self.specloc):
-				print '\nThe spectrum location you have entered does not exist. Please try again.\n'
+				print ('\nThe spectrum location you have entered does not exist. Please try again.\n')
 				self.__getSpectraLocation(config=None)
 			else:
-				print '\nThe spectrum location exists :).\n'
+				print ('\nThe spectrum location exists :).\n')
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
 			uf.exit(self)
 		except:
@@ -359,7 +369,7 @@ class inputCatalogue(object):
 				self.rowstart = input('Please enter the row number corresponding to the start of the data in the spectrum files (this number should be the same for every spectrum file).\n(Please note: row numbering starts at 1 - the first row of information is row 1): ')
 				self.rowstart = int(self.rowstart)
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
 			uf.exit(self)
 		except:
@@ -371,9 +381,9 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'RowDelimiter'): 
 				self.rowdelim = config['RowDelimiter']
 			else:
-				self.rowdelim = raw_input('Please enter the delimiter used in the spectra files (this must be the same for all spectra): ')
+				self.rowdelim = input('Please enter the delimiter used in the spectra files (this must be the same for all spectra): ')
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
 			uf.exit(self)
 		except:
@@ -387,12 +397,12 @@ class inputCatalogue(object):
 			else:
 				self.speccol = input("Please enter the column numbers of the spectral axis and flux (the column number of the first column is 0).\nThe numbers should be separated by a ',' e.g. 0,1: ")
 			if len(self.speccol) != 2:
-				print 'You need to enter two column numbers. Please try again.\n'
+				print ('You need to enter two column numbers. Please try again.\n')
 				self.__getSpectrumColumns(config=False, data=None)
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit():
-			uf.exit(self)
+			raise uf.exit(self)
 		except:
 			logger.error('There was an error with the spectrum column numbers.', exc_info=True)
 			uf.earlyexit(self)
@@ -405,15 +415,15 @@ class inputCatalogue(object):
 				H0 = config['H0']
 				Om0 = config['Om0']
 			else:
-				print '\nWe assume a Flat Lambda CDM universe'
+				print ('\nWe assume a Flat Lambda CDM universe')
 				H0 = input('Please enter the Hubble constant (H0) in units of km/s/Mpc: ')
 				Om0 = input('Please enter the Omega matter (Om0): ')
 			self.cosmology = astcos.FlatLambdaCDM(H0, Om0)
 			logger.info('Cosmology: H0 = %.1f %s, Om0 = %.3f'%(self.cosmology.H0.value, self.cosmology.H0.unit.to_string(), self.cosmology.Om0))
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
-			uf.exit(self)
+			raise uf.exit(self)
 		except:
 			logger.error('There was a problem with entering the cosmology.', exc_info=True)
 			uf.earlyexit(self)
@@ -441,9 +451,9 @@ class inputCatalogue(object):
 				self.maxgalw = input('Enter maximum galaxy width in km/s: ') * astun.km/astun.s
 			logger.info('Maximum galaxy width = %i %s'%(self.maxgalw.value, self.maxgalw.unit.to_string()))
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
-			uf.exit(self)
+			raise uf.exit(self)
 		except:
 			logger.error("Did not understand the maximum galaxy width.", exc_info=True)
 			uf.earlyexit(self)
@@ -453,16 +463,16 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'WeightOption'):
 				self.weighting = str(config['WeightOption'])
 			else:
-				print '\nThe following are options can be used to weight each spectrum:\n\t1. w = 1. [default]\n\t2. w = 1/rms \n\t3. w = 1/rms^2 \n\t4. w = dl^2/rms^2'
+				print ('\nThe following are options can be used to weight each spectrum:\n\t1. w = 1. [default]\n\t2. w = 1/rms \n\t3. w = 1/rms^2 \n\t4. w = dl^2/rms^2')
 				## TODO: add in option for individual weights from catalogue as well as custom weighting function
-				weights = raw_input('Please enter the number of the scheme you would like to use: ')
+				weights = input('Please enter the number of the scheme you would like to use: ')
 				self.weighting = weights[0]
 			wghts = {'1': 'w = 1', '2': 'w = 1/rms', '3': 'w = 1/rms^2', '4': 'w = dl^2/rms^2'}
 			logger.info('Weighting factor: %s'%wghts[self.weighting])
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
-			uf.exit(self)
+			raise uf.exit(self)
 		except:
 			logger.error('Could not identify the weighting scheme.', exc_info=True)
 			uf.earlyexit(self)
@@ -474,12 +484,12 @@ class inputCatalogue(object):
 			else:
 				maxstackw = input('Please enter the maximum length of the stacked spectrum in km/s: ') * astun.km/astun.s
 			if maxstackw < 2.5*self.maxgalw:
-				print 'The stacked spectrum length is too short - we will not be able to have very good noise calculations, etc. Please try again.\n'
+				print ('The stacked spectrum length is too short - we will not be able to have very good noise calculations, etc. Please try again.\n')
 				self.__getMaxLenSpectrum(config=None)
 			else:
 				self.maxstackw = maxstackw
 			logger.info('Length of stacked spectrum: %i %s'%(self.maxstackw.value, self.maxstackw.unit.to_string()))
-		except KeyboardInterrupt, SystemExit:
+		except (KeyboardInterrupt, SystemExit):
 			uf.exit(self)
 		except: 
 			logger.error('Could not determine the maximum length of the stacked spectrum.', exc_info=True)
@@ -491,16 +501,16 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'UncertaintyYN'):
 				self.uncert = config['UncertaintyYN']
 			else:
-				self.uncert = raw_input('Should I calculate uncertainties? ')
+				self.uncert = input('Should I calculate uncertainties? ')
 
 			if self.uncert.lower() == 'n':
 				self.mc = 1
 			else:
 				self.mc = self.mc
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
-			uf.exit(self)
+			raise uf.exit(self)
 		except: 
 			logger.error('There was a problem determining whether or not to perform an uncertainty analysis.')
 			uf.earlyexit(self)
@@ -511,13 +521,13 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'UncertaintyMethod'):
 				self.uncerttype = config['UncertaintyMethod']
 			else:
-				untyp = raw_input('Which method of redshift uncertainties should I use? [dagjk/redshift] ')
+				untyp = input('Which method of redshift uncertainties should I use? [dagjk/redshift] ')
 				uncertop = { 'r': 'redshift', 'd': 'dagjk' }
 				self.uncerttype = uncertop[(untyp.lower())[0]]
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			raise uf.exit(self)
 		except SystemExit:
-			uf.exit(self)
+			raise uf.exit(self)
 		except: 
 			logger.error('There was a problem determining whether or not to perform an uncertainty analysis', exc_info=True)
 			uf.earlyexit(self)
@@ -539,8 +549,9 @@ class inputCatalogue(object):
 		self.noiselen = self.exspeclen - self.mask
 		self.keys = self.catalogue['Object ID'].data
 		self.numcatspec = len(self.keys)
-		randinds = [np.random.choice(len(self.catalogue), len(self.catalogue), replace=False) for j in xrange(self.mc+1)]
-		self.randz = np.array( [ self.catalogue['Redshift'][randinds[i]] for i in xrange(self.mc+1)] )
+		self.mediandistance = self.cosmology.luminosity_distance(self.medianz)
+		randinds = [np.random.choice(len(self.catalogue), len(self.catalogue), replace=False) for j in range(self.mc+1)]
+		self.randz = np.array( [ self.catalogue['Redshift'][randinds[i]] for i in range(self.mc+1)] )
 		if True in self.catalogue['Redshift Uncertainty'].mask:
 			self.randuz = 0.0002*np.random.randn(len(self.catalogue), self.mc)
 		else:
@@ -589,9 +600,9 @@ class inputCatalogue(object):
 		logger.info('Spectrum channel width: %.3g %s'%(self.channelwidth.value, self.channelwidth.unit.to_string()))
 
 		if config is None:
-			print '\nThe following settings relate to the spectra to be stacked.'
+			print ('\nThe following settings relate to the spectra to be stacked.')
 		else:
-			h = 0
+			pass
 		self.__getSpectraLocation(config)
 		self.__getSpectrumRowStart(config)
 		self.__getSpectrumColumns(config)
@@ -599,11 +610,12 @@ class inputCatalogue(object):
 
 
 	def runInput(self, config):
+
 		try:
 			self.__callCriticalUser(config)
 			self.__callOptionalUser(config)
 			self.__calcPrivate()
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(self)
 		except:
 			logger.error('Encountered an exception:', exc_info=True)

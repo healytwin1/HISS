@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import astropy.io.fits as astfit
 import astropy.io.ascii as astasc
+import astropy.table as asttab
 import useful_functions as uf
 import astropy.modeling as astmod
 import astropy.units as astun
@@ -44,6 +45,7 @@ class dispData(anaData):
 		self.mask = cat.mask
 		self.maxgalw = cat.maxgalw
 		self.mean = cat.mean
+		self.avemass = (cat.avemass)
 
 
 	def __read_in_data(self, cat):
@@ -74,7 +76,8 @@ class dispData(anaData):
 
 	def __readTextData(self):
 		logger.info('Reading in integrated flux data for display.')
-		self.massdata = astasc.read(self.massfilename, format='ecsv')
+		self.massdata = asttab.Table.read(self.massfilename, format='ascii.ecsv')
+		return
 
 
 	def printTable(self, table):
@@ -83,6 +86,10 @@ class dispData(anaData):
 
 
 	def __printStatistics(self, uncert, cat):
+		if type(self.avemass) != np.float_:
+			self.avemass = (self.avemass).value
+		else:
+			pass
 		self.massdata['Integrated Flux'].format = '7.2g'
 		if '4' in cat.optnum or '4.' in cat.optnum:
 			h=0
@@ -98,25 +105,29 @@ class dispData(anaData):
 		unit = self.massdata['Integrated Flux'].unit
 		masstable = self.printTable(self.massdata)
 		t = 'Total flux of sample = %.2g %s'%(self.totalmass, unit)
+
+		am = 'Average HI mass of sample = %.2g %s'%(self.avemass, 'Msun')
 		n = 'Stacked N = %i profiles'%self.nobj
 		masstable = self.printTable(self.massdata)
+		
 
 		line0 = '\n   |'+'-'*tl+'|'
 		line1 = '   |'+' '*tl+'|'
 		line2 = '   |'+' '*5+n+' '*(tl-5-len(n))+'|'
-		line3 = '   |'+' '*5+t+' '*(tl-5-len(t))+'|'
-		line4 = '   |'+' '*tl+'|'
-		linet = ''
-		for i in xrange(len(masstable)):
-			linet += '   |'+'   '+masstable[i]+' '*(tl-3-len(masstable[i]))+'|' + '\n'
+		line3 = '   |'+' '*5+am+' '*(tl-5-len(am))+'|'
+		line4 = '   |'+' '*5+t+' '*(tl-5-len(t))+'|'
 		line5 = '   |'+' '*tl+'|'
-		line6 = '   |'+'-'*tl+'|'
+		linet = ''
+		for i in range(len(masstable)):
+			linet += '   |'+'   '+masstable[i]+' '*(tl-3-len(masstable[i]))+'|' + '\n'
+		line6 = '   |'+' '*tl+'|'
+		line7 = '   |'+'-'*tl+'|'
 
-		displaytext = line0 + '\n' + line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n' + linet  + line5 + '\n' + line6 + '\n' 
+		displaytext = line0 + '\n' + line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n'  + line5 + '\n' + linet + line6 + '\n' + line7 + '\n' 
 		
 		logger.info('Integrated flux results:'+displaytext)
 		if cat.suppress == 'hide':
-			print displaytext
+			print (displaytext)
 		else:
 			h = 0		
 		return
@@ -126,38 +137,37 @@ class dispData(anaData):
 		
 		plt.close('all')
 		fig = plt.figure(figsize=( 12,8.5 ))
-		gs = gridspec.GridSpec(5,4)
-		ax1 = fig.add_subplot(gs[:3,:2]) ## stacked spectrum
-		ax2 = fig.add_subplot(gs[:3,2:]) ## stacked noise
-		ax3 = fig.add_subplot(gs[3:,:]) ## bottom panel, containing tabled data
+		gs = gridspec.GridSpec(9,4)
+		ax1 = fig.add_subplot(gs[:5,:2]) ## stacked spectrum
+		ax2 = fig.add_subplot(gs[:5,2:]) ## stacked noise
+		ax3 = fig.add_subplot(gs[5:,:]) ## bottom panel, containing tabled data
+
 
 		if astun.Jy == cat.stackunit:
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
-				unitstr = r'$\mathrm{mJy}$'
+				unitstr = r'Average Stacked Flux Density ($\mathrm{mJy}$)'
 			elif max(spec) < 1E-3:
 				conv = 1E6
-				unitstr = r'$\mu \mathrm{Jy}$'
+				unitstr = r'Average Stacked Flux Density ($\mathrm{\mu Jy}$)'
 			else:
 				conv = 1.
-				unitstr = r'$\mathrm{Jy}$'
-			t = r'Total flux of sample = %5.2g %s'%(self.totalmass, 'Jy km/s')
+				unitstr = 'Average Stacked Flux Density ($\mathrm{Jy}$)'
+			t = r'Total integrated flux of sample = %5.2g %s'%(self.totalmass, 'Jy km/s')
 		elif uf.msun == cat.stackunit:
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]
-			if masexp[0] == '0':
-				masexp = masexp[1]
 			conv = 1./eval('1E%s'%masexp)
-			t = r'Total flux of sample = %s %s'%(uf.latexexponent(self.totalmass), r'M$_\odot$')
-			unitstr = r'$10^{%i} \, \mathrm{M}_\odot$'%float(masexp)
+			unitstr = r'Average Stacked Mass ($10^{%i} \, \mathrm{M_\odot/chan}$)'%float(masexp)
+			t = r'Total HI mass of sample = %s %s'%(uf.latexexponent(self.totalmass), r'M$_\odot$')
 		elif uf.gasfrac == cat.stackunit:
 			conv = 1.
-			unitstr = r'M$_\mathrm{HI}$/M$_\ast$'
+			unitstr = r'Average Stacked Gas Fraction (M$_\mathrm{HI}$/M$_\ast$)'
 			t = ''
 		else:
 			conv = 1.
-			unitstr = ''
+			unitstr = 'Average Stacked Quantity'
 		
 
 		if cat.clean == 'clean':
@@ -167,7 +177,7 @@ class dispData(anaData):
 			ax2.set_xlabel(r'Number of stacked spectra')
 			ax2.errorbar(X, self.stackrms, yerr=(self.noiseuncert), ls='', ecolor='k', mec='gray', mfc='gray', marker='o', ms=4)
 			ax2.plot(X, self.averagenoise/np.sqrt(X),'g-')
-			ax2.set_ylabel(r'Stacked Average Noise Flux ($\mathrm{Jy}$)')
+			ax2.set_ylabel(r'Stacked Average Noise ($\mathrm{Jy}$)')
 			ax2.set_xscale('log')
 			ax2.set_yscale('log')
 			ax2.set_xlim(0.9, self.nobj+0.1*self.nobj)
@@ -176,7 +186,7 @@ class dispData(anaData):
 			
 		## stacked spectrum
 		x = np.linspace(spectral[0],spectral[-1],10000)
-		ax1.set_ylabel(r'Average Stacked Flux (%s)'%unitstr)
+		ax1.set_ylabel(unitstr)
 		ax1.set_xlabel(r'Relative Velocity (km/s)')
 		ax1.set_xlim([spectral[0],spectral[-1]])
 		xx = ax1.get_xticks()
@@ -217,11 +227,11 @@ class dispData(anaData):
 		else:
 			ex =''
 		p = r'The significance of the peak: $%s %3.2g\sigma$ (p-value = %s)'%(ex, sig, uf.latexexponent(pval))
-
+		am = 'Average HI mass of sample = %s %s'%(uf.latexexponent(self.avemass), r'M$_\odot$')
 		n = r'Number of galaxy profiles included in Stacked Spectrum: %i'%self.nobj
 
 		if cat.latex == 'latex':
-			tabstrinner = r'%s \\ %s \\ %s \\ %s \\ %s'%(n, t, snr, p, r'  ')
+			tabstrinner = r'%s \\ %s \\ %s \\ %s \\ %s \\ %s'%(n, am, t, snr, p, r'  ')
 			tabstr1 = r'\begin{tabular}{l} %s \end{tabular}'%tabstrinner
 		
 			tabstr = uf.latextablestr(self.massdata, cat)
@@ -231,9 +241,12 @@ class dispData(anaData):
 
 			ax3.text(s=plotstr, x=0.5, y=0.5, horizontalalignment='center', verticalalignment='center', color='k')
 		else:
-			tabstrinner = r'%s \n%s \n%s \n%s \n%s'%(n, t, snr, p, r'  ')
+			tabstrinner = '%s \n%s \n%s \n%s \n%s \n%s'%(n, am, t, snr, p, r'  ')
+			ax3.text(s=tabstrinner, x=0.5, y=0.98, horizontalalignment='center', verticalalignment='top', color='k', fontsize=12)
 			massdata = uf.convertable(self.massdata)
-			ax3.table(cellText= massdata.as_array(), colLabels=massdata.colnames, loc='center')
+			ax3.table(cellText= massdata.as_array(), colLabels=massdata.colnames, loc='lower center')
+			thetable = ax3.table(cellText= massdata.as_array(), colLabels=massdata.colnames, loc='lower center', fontsize=12)
+			thetable.auto_set_column_width((-1,0,1,2,3))
 
 		ax3.xaxis.set_visible(False)
 		ax3.yaxis.set_visible(False)
@@ -254,7 +267,7 @@ class dispData(anaData):
 				plt.figure(3, figsize=( 8,6 ), facecolor='white')
 				fname = self.functions[options]
 				plt.title(fname)
-				plt.xlabel(r'Average Stacked Flux %s'%unitstr)
+				plt.xlabel(unitstr)
 				flux = allflux*conv
 				plt.hist( flux[options], bins=20)
 				xx, locs = plt.xticks()
@@ -275,7 +288,7 @@ class dispData(anaData):
 					## top row	
 					grid[0].append(fig.add_subplot(gs[0,int(n/2.)]))				
 					grid[0][int(n/2.)].set_title(self.functions[options[n]], fontsize=11)
-					grid[0][int(n/2.)].set_xlabel(r'''Average Stacked Flux %s'''%unitstr, fontsize=11)
+					grid[0][int(n/2.)].set_xlabel(unitstr, fontsize=11)
 					grid[0][int(n/2.)].hist((allflux[options[n]]*conv), bins=20)
 					grid[0][int(n/2.)].set_xlim((allflux[options[n]]*conv).min(), (allflux[options[n]]*conv).max())
 					xx = grid[0][int(n/2.)].get_xticks()
@@ -288,7 +301,7 @@ class dispData(anaData):
 					if (n+1) != len(options):
 						grid[1].append(fig.add_subplot(gs[1,int(n/2.)]))
 						grid[1][int(n/2.)].set_title(self.functions[options[n+1]], fontsize=11)
-						grid[1][int(n/2.)].set_xlabel(r'''Average Stacked Flux %s'''%unitstr, fontsize=11)
+						grid[1][int(n/2.)].set_xlabel(unitstr, fontsize=11)
 						grid[1][int(n/2.)].hist((allflux[options[n+1]]*conv), bins=20)
 						grid[1][int(n/2.)].set_xlim((allflux[options[n+1]]*conv).min(), (allflux[options[n+1]]*conv).max())
 						xx = grid[1][int(n/2.)].get_xticks()
@@ -317,7 +330,7 @@ class dispData(anaData):
 
 					ax2 = fig.add_subplot(gs[1,-1])
 					ax2.set_title(r'RMS of Stacked Spectrum', fontsize=11)
-					ax2.set_xlabel(r'Average Stacked Flux %s'%unitstr, fontsize=11)
+					ax2.set_xlabel(unitstr, fontsize=11)
 					ax2.hist(extra[1]*conv, bins=20, color='limegreen')
 					ax2.set_xlim((extra[1]*conv).min(), (extra[1]*conv).max())
 					xx = ax2.get_xticks()
@@ -333,14 +346,13 @@ class dispData(anaData):
 
 
 	def display(self, cat, allflux, extra=None, hide=None):
-		
 		if cat.uncert == 'y':
 			uncert = True
 		else:
 			uncert = False
 		try:
 			self.__read_in_data(cat)
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(cat)
 		except:
 			logger.critical('Encountered an error reading in the FITS data.', exc_info=True)
@@ -348,7 +360,7 @@ class dispData(anaData):
 
 		try:
 			self.__readTextData()
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(cat)
 		except:
 			logger.critical('Encountered an error reading in the text data.', exc_info=True)
@@ -356,7 +368,7 @@ class dispData(anaData):
 		
 		try:
 			self.__printStatistics(uncert, cat)
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(cat)
 		except:
 			logger.critical('Encountered an error printing the results.', exc_info=True)
@@ -368,7 +380,7 @@ class dispData(anaData):
 		else:
 			try:
 				self.__displayplots(cat, uncert, allflux=allflux, spec=self.spec, spectral=self.spectralaxis, refspec=self.refspec,specuncert=self.specuncert, extra=extra)
-			except SystemExit, KeyboardInterrupt:
+			except (SystemExit, KeyboardInterrupt):
 				uf.exit(cat)
 			except:
 				logger.critical('Encountered an error trying to display the plots:', exc_info=True)

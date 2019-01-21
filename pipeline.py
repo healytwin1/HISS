@@ -1,13 +1,16 @@
-#!/usr/local/bin/python
+# from __future__ import print_function
 import sys
 h = sys.version_info
 if (sys.version_info < (2, 7)):
-	print ' The package has been tested on Python 2.7, and may not work with your current version (%i.%i.%i). '%(h.major, h.minor, h.micro)
-elif (sys.version_info > (3, 0)):
-	print ' The package has been tested on Python 2.7, and will not work with your current version (%i.%i.%i). '%(h.major, h.minor, h.micro)
-	sys.exit()
+	print('Warning: Some functions may not work.')
+	
+	# print ' The package has been tested on Python 2.7, and may not work with your current version (%i.%i.%i). '%(h.major, h.minor, h.micro)
+	# elif (sys.version_info > (3, 0)):
+	# print ' The package has been tested on Python 2.7, and will not work with your current version (%i.%i.%i). '%(h.major, h.minor, h.micro)
+	# sys.exit()
 else:
-	h = 0
+	pass
+
 
 
 
@@ -24,10 +27,14 @@ parser.add_argument('-l','--latex', help='This option enables to the use of late
 args = parser.parse_args()
 config = args.config
 
+
 import matplotlib
 if args.suppress == 'hide':
 	matplotlib.use('Agg')	
 	progress = None
+else:
+	pass
+	# matplotlib.use('TkAgg')
 
 if args.latex == 'latex':
 	matplotlib.rc('text', usetex=True)
@@ -42,7 +49,7 @@ logging.basicConfig(format='(%(asctime)s) [%(name)-17s] %(levelname)s: %(message
 logging.captureWarnings(True)
 
 modules = ['astropy', 'matplotlib', 'scipy', 'numpy', 'yaml']
-versions = ['1.1.1','1.4.3', '0.17','1.09.1','3.11']
+versions = ['3.0.0','1.5', '0.17','1.09.1','3.11']
 def checkmod(modname, version):
 	try:
 		if modname == 'yaml':
@@ -52,7 +59,7 @@ def checkmod(modname, version):
 			__import__(modname)# this will fail if the module doesn't exist on the system
 			currentversion = pk.get_distribution(modname).version
 			if currentversion < version:
-				print 'Please update %s, you have version %s installed and this package needs to be at least version %s.'%(modname, currentversion, version)
+				print ('Please update %s, you have version %s installed and this package needs to be at least version %s.'%(modname, currentversion, version))
 				status = False
 				
 				return status
@@ -60,12 +67,12 @@ def checkmod(modname, version):
 				status = True
 				return status
 	except ImportError:
-		print 'This package needs %s, please install it and try again.'%modname
+		print ('This package needs %s, please install it and try again.'%modname)
 		status = False
 		return status
 
 status = True
-for m in xrange(5):
+for m in range(5):
 	newstatus = checkmod(modules[m], versions[m])
 	if newstatus == False:
 		status = False
@@ -98,9 +105,9 @@ import astropy
 import json
 import platform
 import gc
-import cPickle as pck
+import _pickle as pck
 from functools import partial
-os.system("taskset -p 0xff %d" % os.getpid())
+# os.system("taskset -p 0xff %d" % os.getpid())
 
 warnings.filterwarnings('ignore')
 
@@ -183,8 +190,6 @@ def startfigure(cat):
 			ax1.set_xticklabels(lab)
 			ax1.set_xlim(xs,xe)
 			ax1.set_xlabel('Velocity ('+cat.spectralunit.to_string()+')')
-		
-
 		return fig, ax1, ax2, ax3, ax4
 	else:
 		return None, None, None, None, None
@@ -263,15 +268,17 @@ def stackeverything(pbar,cat, stackobj, binstatus, callno, binno, mccount, fig, 
 	## Stack the catalogue
 	######################################################################################
 
-	for n in xrange(0, stackobj):
+	for n in range(0, stackobj):
 		spectrum = SD.objSpec()
 		col = colours[n]
 		cat = spectrum.callModule(cat, n, mccount, axes=[ax1,ax2], fig=fig)
+
 		if spectrum.origspec is None:
 			continue
 		else:
 			stackspectrum = stackspectrum + spectrum
 			fig = plotprogress(cat, stackobj, col, stackspectrum, spectrum, fig, ax1, ax2, ax3, ax4, n)
+
 			if mccount == 0:
 				frac = int((n+1.)/stackobj * 100.)
 				if frac < 2:
@@ -305,12 +312,11 @@ def stackeverything(pbar,cat, stackobj, binstatus, callno, binno, mccount, fig, 
 	## Abort process if the stack is empty
 	######################################################################################
 	if len(stackspectrum.stackrms) == 0 and len(cat.outcatalogue) == 0 and cat.uncert == 'n':
-		print "\nThere were no spectra to stack or something went wrong. I am going to abort and you need to check that there are spectrum files in the correct folder and that the spectrum file names are correctly entered in to the the catalogue."
+		print ("\nThere were no spectra to stack or something went wrong. I am going to abort and you need to check that there are spectrum files in the correct folder and that the spectrum file names are correctly entered in to the the catalogue.")
 		logging.critical('There were no spectra to stack, or something else went wrong. Please check that the spectrum files in specified folder.')
 		uf.earlyexit(cat)
-		# sys.exit()
 	elif len(stackspectrum.stackrms) == 0 and len(cat.outcatalogue) != 0 and cat.uncert == 'n':
-		print "\nThere were no spectra to stack or something went wrong. I am going to abort and you need to check that there are spectrum files in the correct folder and that the spectrum file names are correctly entered in to the the catalogue."
+		print ("\nThere were no spectra to stack or something went wrong. I am going to abort and you need to check that there are spectrum files in the correct folder and that the spectrum file names are correctly entered in to the the catalogue.")
 		return cat
 	elif len(stackspectrum.stackrms) == 0 and len(cat.outcatalogue) == 0 and cat.uncert == 'y':
 
@@ -343,6 +349,8 @@ def pipeline(cat, config, data, binstatus, binno=None, mccount=0):
 
 	if cat.progress == 'progress':
 		plt.show(block=False)
+	else:
+		pass
 
 	## creating the stack objects
 	xs = cat.spectralaxis.value[0]
@@ -370,17 +378,17 @@ def pipeline(cat, config, data, binstatus, binno=None, mccount=0):
 
 	if cat.uncert == 'y' and mccount == 0:
 		if binstatus == 'bin':
-			print '\nProgress of first round of Bin %i: '%binno
+			print ('\nProgress of first round of Bin %i: '%binno)
 			logging.info('Starting first round of Bin %i.'%binno)
 		else:
-			print '\nProgress of first round: '
+			print ('\nProgress of first round: ')
 			logging.info('Starting stacking first round.')
 	elif cat.uncert == 'n':
 		if binstatus == 'bin':
-			print'\nStacking progress of Bin %i: '%binno
+			print('\nStacking progress of Bin %i: '%binno)
 			logging.info('Starting stacking of Bin %i.'%binno)
 		else:
-			print'\nStacking progress: '
+			print('\nStacking progress: ')
 			logging.info('Starting stacking.')
 	else:
 		h = 0
@@ -399,9 +407,9 @@ def pipeline(cat, config, data, binstatus, binno=None, mccount=0):
 		mccount += 1
 		if cat.uncert == 'y':
 			if binstatus == 'bin':
-				print '\n\nUncertainty calculations of Bin %i in progress:'%binno
+				print ('\n\nUncertainty calculations of Bin %i in progress:'%binno)
 			else:
-				print '\n\nUncertainty calculations in progress:'
+				print ('\n\nUncertainty calculations in progress:')
 			pbar = ''
 			if cat.multiop == 'multi':
 				results = []
@@ -441,7 +449,7 @@ def pipeline(cat, config, data, binstatus, binno=None, mccount=0):
 			if cat.multiop == 'multi':
 				pool.close()
 				pbar = ''
-				for n in xrange(cat.mc):
+				for n in range(cat.mc):
 					frac = int((n+1.)/cat.mc * 100.)
 					if frac < 2:
 						frac = 0
@@ -451,7 +459,7 @@ def pipeline(cat, config, data, binstatus, binno=None, mccount=0):
 					results[n].get()
 					analysisfinal = analysisfinal + analysisempty.load(n+1, cat)
 			else:
-				for n in xrange(1, cat.mc+1, 1):
+				for n in range(1, cat.mc+1, 1):
 					frac = int( float(cat.mc + n)/(cat.mc*2.) * 100. )
 					pbar = uf.progressbar(frac, pbar)
 					analysisfinal = analysisfinal + analysisempty.load(n, cat)
@@ -479,7 +487,6 @@ def main():
 
 	## create a temp file for all object files
 	uf.checkpath('%sstackertemp/'%fullcat.outloc)
-
 	if uf.checkkeys(data, 'BinYN'):
 		binyn = data["BinYN"]
 	else:
@@ -489,7 +496,7 @@ def main():
 		bincatalogue = BD.binnedCatalogue(fullcat)
 		try:
 			bincatalogue.determineBins(data)
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(fullcat)
 		except:
 			logging.warning("Couldn't determine the catalogue for the different bins:", exc_info=True)
@@ -503,15 +510,28 @@ def main():
 		counter = 0
 		while counter < repeat:
 			mccount = counter
-			for m in xrange(0,len(bincatalogue.binpartindicies)-1):
+			for m in range(0,len(bincatalogue.binpartindicies)-1):
 				if counter > 0:
 					bincatalogue = pck.load( open('%sstackertemp/catalogue_obj.pkl'%fullcat.outloc, 'rb') )
 				else:
 					h = 0
-				bincatalogue.createCatalogue(bincatalogue.binpartindicies, bincatalogue.binnedtable, m, counter)
+				try:
+					bincatalogue.createCatalogue(bincatalogue.binpartindicies, bincatalogue.binnedtable, m, counter)
+				except KeyboardInterrupt:
+					uf.earlyexit(cat)
+					raise sys.exit()
+				except SystemExit:
+					uf.earlyexit(cat)
+					raise sys.exit()
+				except:
+					logger.error('Exception occurred trying to create the binned catalogue.', exc_info=True)
+					uf.earlyexit(cat)
+					raise sys.exit()
+				
 				if len(bincatalogue.catalogue) < 2:
 					h = 0
 				else:
+
 					catalogue = pipeline(bincatalogue, config, data, 'bin', m+1, mccount)
 					if counter == 0:
 						bincatalogue = bincatalogue + catalogue
@@ -546,7 +566,7 @@ def main():
 			catalogue.sort('Bin Number')
 			astasc.write(catalogue, fullcat.outloc+'Stacked_Catalogue_%s.csv'%fullcat.runtime, format='ecsv')
 			logging.info('Written Stacked Catalogue to file.')
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(fullcat)
 		except:
 			logging.warning("Struggled to save the catalogue files.", exc_info=True)
@@ -559,7 +579,7 @@ def main():
 	else:
 		h = 0
 
-	print '\nStacker has finished.\n'
+	print( '\nStacker has finished.\n')
 	uf.exit(fullcat)
 	return
 
@@ -569,6 +589,8 @@ if __name__ == '__main__':
 		main()
 	except:
 		raise sys.exit()
+else:
+	main()
 
 
 

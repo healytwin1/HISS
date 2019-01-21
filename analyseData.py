@@ -9,6 +9,7 @@ import matplotlib.gridspec as gridspec
 import sys, os
 import useful_functions as uf
 from scipy.special import gammainc, erfinv, gammaincc
+from scipy.interpolate import splrep, sproot, splev
 from scipy.stats import chisquare
 import scipy.optimize as opt 
 import timeit
@@ -75,8 +76,8 @@ class anaData(object):
 		self.outloc = ''
 		self.datafilename = ''
 		self.massfilename = ''
-		self.fitparam = ['','','','','','','']
-		self.fitparamuncert = ['','','','','','','']
+		self.fitparam = [None, None, None, None, None, None, None]#['','','','','','','']
+		self.fitparamuncert = [None, None, None, None, None, None, None]
 		self.paramtable = None
 		self.intflux = np.zeros(8)
 		self.tflux = None
@@ -84,9 +85,11 @@ class anaData(object):
 		self.averagenoise = 0.
 		self.rebinstatus = False
 		self.specuncert = 0.
-		self.functions = ['Single Gaussian', 'Double Gaussian', 'Lorentzian Distribution Function', 'Voigt Profile', '3rd Order Gauss-Hermite Polynomial', 'Busy Function (with double horn)', 'Busy Function (without double horn)','Summed Flux of Stacked Spectrum']
-		self.fitcolors = {'Single Gaussian':'blue', 'Double Gaussian':'steelblue', 'Lorentzian Distribution Function':'limegreen', 'Voigt Profile':'darkorange', '3rd Order Gauss-Hermite Polynomial':'forestgreen', 'Busy Function (without double horn)':'darkviolet', 'Busy Function (with double horn)':'deeppink'}
+		self.functions = ['Single Gaussian', 'Double Gaussian', 'Lorentzian Distribution Function', 'Voigt Profile', '3rd Order Gauss-Hermite Polynomial', 'Busy Function (with double horn)', 'Busy Function (without double horn)','Flux Density of Stacked Spectrum']
+		self.fitcolors = {'Single Gaussian':'blue', 'Double Gaussian':'cornflowerblue', 'Lorentzian Distribution Function':'limegreen', 'Voigt Profile':'darkorange', '3rd Order Gauss-Hermite Polynomial':'saddlebrown', 'Busy Function (without double horn)':'darkviolet', 'Busy Function (with double horn)':'deeppink'}
 		self.runno = None
+		self.fitw50 = ['','','','','','','']
+		
 
 
 	def __fillInitial(self, other, cat, runno):
@@ -96,15 +99,24 @@ class anaData(object):
 			h = 0
 		self.nobj = int(other.nobj)
 		self.spectralaxis = other.spectralaxis.value
-		self.tflux = np.sum(other.spec.value[len(other.spec.value)/2-cat.mask:len(other.spec.value)/2+1+cat.mask]/other.weightsum) * other.nobj
+		self.tflux = np.sum(other.spec.value[int(len(other.spec.value)/2-cat.mask):int(len(other.spec.value)/2+1+cat.mask)]/other.weightsum) * other.nobj
 		self.spec = (other.spec.value/other.weightsum)
 		self.refspec = other.refspec.value/other.weightsum
 		self.noise = other.stackrms[-1]
-		self.averagenoise = np.nanmedian(other.rms)
+		self.averagenoise = self.__averagenoise(other.stackrms)#np.nanmedian(other.rms)
 		self.stackrms = other.stackrms
 		self.weightsum = other.weightsum
 		self.runno = runno
 		return
+
+	def __averagenoise(self, noiselist):
+		x = (range(1, len(noiselist)+1, 1))
+		y = noiselist 
+		m, c = opt.curve_fit(uf.strlinelog, x, y)[0]
+		return m
+
+
+
 
 ## methods associated with fitting or determining the statistics
 	def fit_one_gauss(self, flux, axis, cat, weights, uncert=True):
@@ -127,6 +139,8 @@ class anaData(object):
 		p0 = [amp, cat.mean, cat.restdv.value]
 		popt, pcov = opt.curve_fit( uf.singleGaussian, axis, flux, p0=p0, sigma=weights, absolute_sigma=uncert, bounds=([low, cat.mean-cat.restdv.value, cat.restdv.value/2.], [high, cat.mean+cat.restdv.value, cat.maxgalw.value]), **kwargs )
 		sgauss = uf.SingleGaussian(popt[0], popt[1], popt[2])
+		cat.w50 = self.calcW50( sgauss(axis), axis )
+		logger.info('Approximate FWHM of Gaussian fit to stack: %.1f km/s'%cat.w50)
 		return sgauss(axis), cat
 
 
@@ -163,7 +177,8 @@ class anaData(object):
 			fitparamuncert = astfit.Column( name='Single Gaussian Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
 			intflux = np.sum(sgauss(axis))
 			fitrms = [self.calcFitRMS(spec, sgauss(axis), weights), self.calChiSquare(spec, sgauss(axis), weights)]
-			return fitparam, fitparamuncert, abs(intflux), fitrms
+			w50 = self.calcW50( sgauss(axis), axis )
+			return fitparam, fitparamuncert, abs(intflux), fitrms, w50
 		elif process == 'plot':
 			sgauss = uf.SingleGaussian(param[0], param[1], param[2])
 			return sgauss(axis)
@@ -192,14 +207,15 @@ class anaData(object):
 				amp = np.nanmin(spec)
 				high = 0.
 			p0 = [0.7*amp, cat.mean+cat.restdv.value, cat.restdv.value, 0.7*amp, cat.mean-cat.restdv.value, cat.restdv.value]
-			popt, pcov = opt.curve_fit( uf.doubleGaussian, axis, spec, p0=p0, sigma=weights, absolute_sigma=uncert, bounds=( [low, cat.mean-cat.maxgalw.value/10., cat.restdv.value/2., low, cat.mean-cat.maxgalw.value/10., cat.restdv.value/2. ], [high, cat.mean+cat.maxgalw.value/10., cat.maxgalw.value, high, cat.mean+cat.maxgalw.value/10., cat.maxgalw.value] ), **kwargs )
+			popt, pcov = opt.curve_fit( uf.doubleGaussian, axis, spec, p0=p0, sigma=weights, absolute_sigma=uncert, bounds=( [low, cat.mean-cat.maxgalw.value/10., cat.restdv.value/2., low, cat.mean-cat.maxgalw.value/5., cat.restdv.value/2. ], [high, cat.mean+cat.maxgalw.value/5., cat.maxgalw.value, high, cat.mean+cat.maxgalw.value/10., cat.maxgalw.value] ), **kwargs )
 			dgauss = uf.DoubleGaussian(popt[0], popt[1], popt[2], popt[3], popt[4], popt[5])
 
 			fitparam = astfit.Column( name='Double Gaussian', format='D', array=popt )
 			fitparamuncert = astfit.Column( name='Double Gaussian Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
 			intflux = np.sum(dgauss(axis))
 			fitrms = [self.calcFitRMS(spec, dgauss(axis), weights),self.calChiSquare(data=spec, model=dgauss(axis), sigma=weights, null=None)]
-			return fitparam, fitparamuncert, abs(intflux), fitrms
+			w50 = self.calcW50( dgauss(axis), axis )
+			return fitparam, fitparamuncert, abs(intflux), fitrms, w50
 		elif process == 'plot':
 			dgauss = uf.DoubleGaussian(param[0], param[1], param[2], param[3], param[4], param[5])
 			return dgauss(axis)
@@ -235,7 +251,8 @@ class anaData(object):
 			fitparamuncert = astfit.Column( name='Lorentzian Distribution Function Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
 			intflux = np.sum(lorentz)
 			fitrms = [self.calcFitRMS(spec, lorentz, weights),self.calChiSquare(data=spec,model=lorentz, sigma=weights, null=None)]
-			return fitparam, fitparamuncert, abs(intflux), fitrms
+			w50 = self.calcW50( lorentz, axis )
+			return fitparam, fitparamuncert, abs(intflux), fitrms, w50
 		elif process == 'plot':
 			lorentz = uf.lorentzian(axis, param[0], param[1], param[2])
 			return lorentz
@@ -271,7 +288,8 @@ class anaData(object):
 			fitparamuncert = astfit.Column( name='Voigt Profile Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
 			intflux = np.sum(voigt)
 			fitrms = [self.calcFitRMS(spec, voigt, weights),self.calChiSquare(data=spec, model=voigt, sigma=weights, null=None)]
-			return fitparam, fitparamuncert, abs(intflux), fitrms
+			w50 = self.calcW50( voigt, axis )
+			return fitparam, fitparamuncert, abs(intflux), fitrms, w50
 		elif process == 'plot':
 			voigt = uf.VoigtModel(axis, param[0], param[1], param[2], param[3])
 			return voigt
@@ -307,7 +325,8 @@ class anaData(object):
 			fitparamuncert = astfit.Column( name='3rd Order Gauss-Hermite Polynomial Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
 			intflux = np.sum(gauss3)
 			fitrms = [self.calcFitRMS(spec, gauss3, weights),self.calChiSquare(data=spec, model=gauss3, sigma=weights)]
-			return fitparam, fitparamuncert, abs(intflux), fitrms
+			w50 = self.calcW50( gauss3, axis )
+			return fitparam, fitparamuncert, abs(intflux), fitrms, w50
 		elif process == 'plot':
 			gauss3 = uf.gausshermite3(axis, param[0], param[1], param[2], param[3])
 			return gauss3
@@ -343,7 +362,8 @@ class anaData(object):
 			fitparamuncert = astfit.Column( name='Busy Function (with double horn) Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
 			intflux = np.sum(busyfunc)
 			fitrms = [self.calcFitRMS(spec, busyfunc, weights),self.calChiSquare(data=spec, model=busyfunc, sigma=weights, null=None)]
-			return fitparam, fitparamuncert, abs(intflux), fitrms
+			w50 = self.calcW50( busyfunc, axis )
+			return fitparam, fitparamuncert, abs(intflux), fitrms, w50
 		elif process == 'plot':
 			busyfunc = uf.busyfunction(axis, param[0], param[1], param[2], param[3], param[4], param[5], param[6])
 			return busyfunc
@@ -379,7 +399,8 @@ class anaData(object):
 			fitparamuncert = astfit.Column( name='Busy Function (without double horn) Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
 			intflux = np.sum(busyfunc)
 			fitrms = [self.calcFitRMS(spec, busyfunc, weights),self.calChiSquare(data=spec, model=busyfunc, sigma=weights, null=None)]
-			return fitparam, fitparamuncert, abs(intflux), fitrms
+			w50 = self.calcW50( busyfunc, axis )
+			return fitparam, fitparamuncert, abs(intflux), fitrms, w50
 		elif process == 'plot':
 			busyfunc = uf.busyfunctionmodel(axis, param[0], param[1], param[2], param[3], param[4])
 			return busyfunc
@@ -406,8 +427,6 @@ class anaData(object):
 		chi_gauss, chi_str = self.calChiSquare(spec, gauss, sigma, null=0.)#self.calcChiSquare(data=spec, df=3, model=gauss, null=noise/10.)
 		D = (chi_str - chi_gauss)
 		pval = gammaincc(3./2.,D/2.)
-		# if pval < np.finfo(pval.dtype).eps:
-		# 	pval = np.finfo(pval.dtype).eps
 		P = gammainc(3./2.,D/2.) #1-pval
 		if pval < np.finfo(pval.dtype).eps:
 			sig = 8.2
@@ -416,54 +435,64 @@ class anaData(object):
 		return pval, sig
 
 
+	def calcW50(self, spec, wavel ):
+		"""
+		adapted from https://stackoverflow.com/questions/10582795/finding-the-full-width-half-maximum-of-a-peak
+		"""
+		half_max = np.nanmax(spec)/2.0
+		s = splrep(wavel, spec - half_max)
+		roots = sproot(s)
+		w50 = abs(roots[-1] - roots[0])
+		return w50
+
+
 	def callFunctions(self, num, cat, spec, axis, weights, uncert=False, param=None, process='fit'):
-		# print '--- Fitting functions ---'
 		if num == '1':
 			output = self.fit_single_gaussian(cat, spec, axis, weights, uncert, param, process)
 			if process == 'fit':
-				self.fitparam[0], self.fitparamuncert[0], self.intflux[0], self.fitrms[0] = output
+				self.fitparam[0], self.fitparamuncert[0], self.intflux[0], self.fitrms[0], self.fitw50[0] = output
 			else:
 				return output
 		elif num == '2':
 			output = self.fit_double_gaussian(cat, spec, axis, weights, uncert, param, process)
 			if process == 'fit':
-				self.fitparam[1], self.fitparamuncert[1], self.intflux[1], self.fitrms[1] = output
+				self.fitparam[1], self.fitparamuncert[1], self.intflux[1], self.fitrms[1], self.fitw50[1] = output
 			else:
 				return output
 		elif num == '3':
 			output = self.fit_lorentz(cat, spec, axis, weights, uncert, param, process)
 			if process == 'fit':
-				self.fitparam[2], self.fitparamuncert[2], self.intflux[2], self.fitrms[2] = output
+				self.fitparam[2], self.fitparamuncert[2], self.intflux[2], self.fitrms[2], self.fitw50[2] = output
 			else:
 				return output
 		elif num == '4':
 			output = self.fit_voigt(cat, spec, axis, weights, uncert, param, process)
 			if process == 'fit':
-				self.fitparam[3], self.fitparamuncert[3], self.intflux[3], self.fitrms[3] = output
+				self.fitparam[3], self.fitparamuncert[3], self.intflux[3], self.fitrms[3], self.fitw50[3] = output
 			else:
 				return output
 		elif num == '5':
 			output = self.fit_gausshermite3(cat, spec, axis, weights, uncert, param, process)
 			if process == 'fit':
-				self.fitparam[4], self.fitparamuncert[4], self.intflux[4], self.fitrms[4] = output
+				self.fitparam[4], self.fitparamuncert[4], self.intflux[4], self.fitrms[4], self.fitw50[4] = output
 			else:
 				return output
 		elif num == '6':
 			output = self.fit_busyfunction_withhorn(cat, spec, axis, weights, uncert, param, process)
 			if process == 'fit':
-				self.fitparam[5], self.fitparamuncert[5], self.intflux[5], self.fitrms[5] = output
+				self.fitparam[5], self.fitparamuncert[5], self.intflux[5], self.fitrms[5], self.fitw50[5] = output
 			else:
 				return output
 		elif num == '7':
 			output = self.fit_busyfunction_withouthorn(cat, spec, axis, weights, uncert, param, process)
 			if process == 'fit':
-				self.fitparam[6], self.fitparamuncert[6], self.intflux[6], self.fitrms[6] = output
+				self.fitparam[6], self.fitparamuncert[6], self.intflux[6], self.fitrms[6], self.fitw50[6] = output
 			else:
 				return output
 
 	def __plotFunctions(self, spec, spectral, weights, cat, options):
 		plt.close()
-		fig = plt.figure(figsize=(9,9))
+		fig = plt.figure(figsize=(12.5,9))
 		gs = gridspec.GridSpec(6,1)
 		ax1 = fig.add_subplot(gs[:4])
 		ax2 = fig.add_subplot(gs[4:])
@@ -471,63 +500,62 @@ class anaData(object):
 		if astun.Jy == cat.stackunit:
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
-				unitstr = r'$\mathrm{mJy}$'
+				unitstr = r'Average Stacked Flux Density ($\mathrm{mJy}$)'
 			elif max(spec) < 1E-3:
 				conv = 1E6
-				unitstr = r'$\mu \mathrm{Jy}$'
+				unitstr = r'Average Stacked Flux Density ($\mathrm{\mu Jy}$)'
 			else:
 				conv = 1.
-				unitstr = r'$\mathrm{Jy}$'
+				unitstr = 'Average Stacked Flux Density ($\mathrm{Jy}$)'
 		elif uf.msun == cat.stackunit:
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]
 			conv = 1./eval('1E%s'%masexp)
-			unitstr = r'$10^{%i} \, \mathrm{M}_\odot$'%float(masexp)
+			unitstr = r'Average Stacked Mass ($10^{%i} \, \mathrm{M_\odot/chan}$)'%float(masexp)
 		elif uf.gasfrac == cat.stackunit:
 			conv = 1.
-			unitstr = r'M$_\mathrm{HI}$/M$_\ast$'
+			unitstr = r'Average Stacked Gas Fraction (M$_\mathrm{HI}$/M$_\ast$)'
 		else:
 			conv = 1.
-			unitstr = ''
+			unitstr = 'Average Stacked Quantity'
 
-		ax1.set_ylabel(r'Average Stacked Flux (%s)'%unitstr)
-		ax1.bar(spectral, spec*conv, width=cat.restdv.value, color='dimgray', edgecolor='dimgray', label='Average Stacked Spectrum')
+		ax1.set_ylabel(unitstr)
+		ax1.bar(spectral, spec*conv, width=cat.restdv.value, color='gray', edgecolor='gray', label='Average Stacked Spectrum')
 		ax1.set_xlim(spectral[0], spectral[-1])
-		# if 'Hz' in cat.spectralunit.to_string():
-		# 	ax1.set_xlabel(r'Relative Frequency (%s)'%cat.spectralunit.to_string())
-		# elif 'm / s' in cat.spectralunit.to_string():
-		# ax1.set_xlabel(r'Relative Velocity (%s)'%cat.spectralunit.to_string())
 		ax1.set_xlabel(r'Relative Velocity (km/s)')
 
 		x = np.linspace(spectral[0], spectral[-1], 1000)
-		colnames = ['Fitted Function', 'Fit RMS', r'$\chi ^2$', r'$\chi _\mathrm{red}^2$']
+		colnames = ['Fitted Function', 'Fit RMS', r'$\chi ^2$', r'$\chi _\mathrm{red}^2$', r'FWHM (km/s)']
 		celldata = []
 		for num in options:
 			func = self.callFunctions(num, cat, spec, spectral, weights, uncert=True, process='fit')
 			fname = self.functions[int(eval(num)-1)]
 			param = self.fitparam[int(eval(num)-1)].array
+			w50s = self.fitw50[int(eval(num)-1)]
 			func = self.callFunctions(num, cat, None, x, None, uncert=False, param=param, process='plot')
-			celldata.append([fname, self.fitrms[int(eval(num)-1)][0], self.fitrms[int(eval(num)-1)][1], (self.fitrms[int(eval(num)-1)][1])/(len(spec) - len(param) ) ])
+			ind = int(eval(num)-1)
+			celldata.append([np.unicode(fname), self.fitrms[ind][0], self.fitrms[ind][1], (self.fitrms[ind][1])/(len(spec) - len(param) ), self.fitw50[ind] ])
 			ax1.plot(x, func*conv, color=self.fitcolors[fname], label=fname)
 
-		tab = asttab.Table(names=colnames, dtype=('S100', 'f8','f8', 'f8'))
-		for k in xrange(len(celldata)):
+		tab = asttab.Table(names=colnames, dtype=('S100', 'f8', 'f8', 'f8', 'f8'))
+		for k in range(len(celldata)):
 			tab.add_row(celldata[k])
 
 		if cat.latex == 'latex':
-			tabstr = r'''\begin{tabular}{|l|c|c|c|} \hline %s \end{tabular}'''%uf.latextablestr(tab, cat)
-			ax2.annotate(tabstr, xy=(0.5,0.5), xycoords='axes fraction', horizontalalignment='center', verticalalignment='center', color='k')
+			tabstr = r'''\begin{tabular}{|l|c|c|c|c|} \hline %s \end{tabular}'''%uf.latextablestr(tab, cat)
+			ax2.annotate(tabstr, xy=(0.5,0.5), xycoords='axes fraction', horizontalalignment='center', verticalalignment='center', color='k', fontsize=12)
 		else:
 			newtab = uf.convertable(tab)
-			ax2.table(cellText=newtab.as_array(), colLabels=newtab.colnames, loc='center')
+			thetable = ax2.table(cellText=newtab.as_array(), colLabels=newtab.colnames, loc='center', fontsize=14)
+			thetable.auto_set_column_width((-1,0,1,2,3))
 		
 		ax1.legend(loc='upper left',fontsize=8, numpoints=1)
 		ax2.axis('off')
 		plt.tight_layout()
 		logger.info('Created Diagnostic Plot 3 - checking the fitted functions.')
 		if cat.suppress == 'hide':
-			plt.savefig('%sDiagnosticPlot3_Functions_%s.png'%(cat.outloc, cat.runtime),bbox_inches='tight', pad_inches=0.2)
+			plt.savefig('%sDiagnosticPlot3_Functions_%s.pdf'%(cat.outloc, cat.runtime),bbox_inches='tight', pad_inches=0.2)
 		else:
 			plt.show(False)
 
@@ -537,23 +565,25 @@ class anaData(object):
 	def fit_functions(self, cat, spec, axis, weights):
 		try:
 			if self.runno == 0:
-				print '\nWhat functions would you like to fit to the data? (you can choose more than 1)\n\t1. Single Gaussian\n\t2. Double Gaussian\n\t3. Lorentzian Distribution Function\n\t4. Voigt Profile\n\t5. 3rd Order Gauss-Hermite Polynomial\n\t6. Busy Function (with double horn)\n\t7. Busy Function (without double horn)'
-				options = raw_input('Please enter the numbers of the functions you want fitted to the stacked spectrum. (The numbers must be separated by commas): ')
+				print ('\nWhat functions would you like to fit to the data? (you can choose more than 1)\n\t1. Single Gaussian\n\t2. Double Gaussian\n\t3. Lorentzian Distribution Function\n\t4. Voigt Profile\n\t5. 3rd Order Gauss-Hermite Polynomial\n\t6. Busy Function (with double horn)\n\t7. Busy Function (without double horn)')#\n\t8. Cancel fitting
+				options = input('Please enter the numbers of the functions you want fitted to the stacked spectrum. (The numbers must be separated by commas): ')
 				options = tuple(options.split(','))
+				# if 
 				self.__plotFunctions(spec, axis, weights, cat, options)
-				happfunc = raw_input('Are you happy with the chosen functions [y/n]? ')
+				happfunc = input('Are you happy with the chosen functions [y/n]? ')
 				if happfunc == 'n':
 					self.fit_functions(cat, spec, axis, weights)
 				else:
+					plt.close()
 					happfunc = 'y'
 					cat.funcnum = options
 					funcs = [''+'%s'%self.functions[int(eval(i)-1)]+', ' for i in options]
 					func = ''
-					for i in xrange(len(funcs)):
+					for i in range(len(funcs)):
 						func += funcs[i] 
 					func = func[:-2]+'.'
 					logger.info('Fitting %s'%func)
-					plt.close()
+				plt.close()
 		except KeyboardInterrupt:
 			logger.critical('Keyboard Interrupt during function fitting.')
 			uf.earlyexit(cat)
@@ -571,7 +601,8 @@ class anaData(object):
 			return cat
 
 		except KeyboardInterrupt:
-			raise KeyboardInterrupt
+			uf.earlyexit(cat)
+			raise sys.exit()
 		except SystemExit:
 			uf.earlyexit(cat)
 			raise sys.exit()
@@ -596,7 +627,7 @@ class anaData(object):
 
 	def __plot_basic(self, noise, sgauss, spec, refspec, spectrala, num=None, cat=None, rebin=0, smooth=None):
 		plt.close()
-		plotbasic = plt.figure()
+		plotbasic = plt.figure(figsize=(8,6))
 		basicax = plotbasic.add_subplot(111)
 		basicax.set_xlim(spectrala[0],spectrala[-1])
 		self.locs, locs = plt.xticks()
@@ -614,24 +645,24 @@ class anaData(object):
 		if cat.stackunit == astun.Jy:
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
-				ystring = r'Average Flux ($\mathrm{mJy}$)'
+				ystring =  r'Average Stacked Flux Density ($\mathrm{mJy}$)'
 			elif max(spec) < 1E-3:
 				conv = 1E6
-				ystring = r'Average Flux ($\mu \mathrm{Jy}$)'
+				ystring =  r'Average Stacked Flux Density ($\mathrm{\mu Jy}$)'
 			else:
 				conv = 1.
-				ystring = r'Average Flux ($\mathrm{Jy}$)'
+				ystring =  r'Average Stacked Flux Density ($\mathrm{Jy}$)'
 		elif cat.stackunit == uf.msun:
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]
 			conv = 1./eval('1E%s'%masexp)
-			ystring = r'Average Flux ($10^{%i} \, \mathrm{M}_\odot$)'%float(masexp)
+			ystring = r'Average Stacked Mass ($10^{%i} \, \mathrm{M_\odot/chan}$)'%float(masexp)
 		elif cat.stackunit == uf.gasfrac:
-			ystring = r'Average Gas Fraction (M$_\mathrm{HI}$/M$_\ast$)'
+			ystring = r'Average Stacked Gas Fraction (M$_\mathrm{HI}$/M$_\ast$)'
 			conv = 1
 		else:
-			print 'There was a problem with basic plot'
+			print ('There was a problem with basic plot')
 
 		basicax.set_ylabel(ystring)
 		if cat.clean == 'clean':
@@ -640,10 +671,10 @@ class anaData(object):
 		else:
 			basicax.axhspan(ymin=-noise*conv, ymax=noise*conv, alpha=0.5, facecolor='lightskyblue', ec='lightskyblue', label=r'1$\sigma$ noise')
 			basicax.plot(spectral.value, spec*conv, 'k-', label='Stacked Spectrum')
-			basicax.plot(spectral.value, refspec*conv, color='gray', ls='-', label='Reference Spectrum')
+			basicax.plot(spectral.value, refspec*conv, color='gray', ls='--', label='Reference Spectrum', lw=1)
 			basicax.plot(spectral.value, sgauss*conv, color='mediumvioletred', ls='-', label='Fitted Single Gaussian')
 		basicax.set_xlim(spectral.value[0], spectral.value[-1])
-		basicax.legend(loc='upper left',fontsize=10, numpoints=1)
+		basicax.legend(loc='lower center',fontsize=8, numpoints=1, ncol=3)
 
 		if rebin > 0 and smooth is None:
 			extra = 'rebin='+rebin+'_'
@@ -656,7 +687,7 @@ class anaData(object):
 			num = 1
 
 		if cat.suppress == 'hide':
-			plt.savefig(cat.outloc+'DiagnosticPlot%i_SpectrumCheck_%s%s.png'%(num, extra, cat.runtime), bbox_inches='tight', pad_inches=0.2)
+			plt.savefig(cat.outloc+'DiagnosticPlot%i_SpectrumCheck_%s%s.pdf'%(num, extra, cat.runtime), bbox_inches='tight', pad_inches=0.2)
 		else:
 			plt.show(False)
 		return
@@ -683,18 +714,18 @@ class anaData(object):
 	def __getSmoothSpectrum(self, spec, refspec, axis, cat, runno):
 		try:
 			if runno == 0:
-				smoothtype = raw_input('\nPlease choose your favourite smoothing algorithm:\n \t1. Hanning Window\n\t2. Boxcar\nDesired option: ')
+				smoothtype = input('\nPlease choose your favourite smoothing algorithm:\n \t1. Hanning Window\n\t2. Boxcar\nDesired option: ')
 				if uf.checkkeys(cat.smoothalgorithms, smoothtype.split()[0]):
 					cat.smoothtype = cat.smoothalgorithms[smoothtype.split()[0]]
 				else:
-					print 'The smoothing algorithm you chosen is not implemented in this software.\nPlease try again.'
+					print ('The smoothing algorithm you chosen is not implemented in this software.\nPlease try again.')
 					self.__getSmoothSpectrum(spec, refspec, axis, cat, runno)
-				cat.smoothwin = input('Please enter the desired size of the smoothing window: ')
+				cat.smoothwin = eval(input('Please enter the desired size of the smoothing window: '))
 			else:
 				h = 0
 			spectrum, referencespectrum = self.__smoothData(cat, spec, refspec, cat.smoothtype, cat.smoothwin)
 			cen = len(spectrum)/2
-			noiselevel = np.std( np.array( list(spectrum[ :cen-cat.mask/2.])+list(spectrum[cen+cat.mask/2.+1: ] ) ))
+			noiselevel = np.std( np.array( list(spectrum[ :int(cen-cat.mask/2.)])+list(spectrum[int(cen+cat.mask/2.+1): ] ) ))
 			fitweights = np.ones(len(spectrum))*noiselevel
 
 			if runno == 0:
@@ -702,7 +733,7 @@ class anaData(object):
 			else:
 				sgauss, cat = self.fit_one_gauss(spectrum, axis, cat, fitweights)
 
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(cat)
 		except:
 			logger.error('Error trying to smooth the stacked spectrum:', exc_info=True)
@@ -714,7 +745,7 @@ class anaData(object):
 		while check == 0:
 			spectrum, referencespectrum, axis, fitweights, noiselevel, sgauss, cat = self.__getSmoothSpectrum(self.spec, self.refspec, self.spectralaxis, cat, self.runno)
 			if self.runno == 0:
-				checkYN = raw_input('\nWould you like to keep this version [y] or rebin again [r] or abort the rebin [a]: ').lower()
+				checkYN = input('\nWould you like to keep this version [y] or rebin again [r] or abort the rebin [a]: ').lower()
 				plt.close()
 				if checkYN == 'y':
 					check = 1
@@ -730,7 +761,7 @@ class anaData(object):
 					cat.rebinstatus = False
 					return spectrum, referencespectrum, axis, fitweights, noiselevel, sgauss, options, n, cat;
 				else:
-					print 'Please choose "y" or "r" or "a". \n'
+					print ('Please choose "y" or "r" or "a". \n')
 					return self.__callSmoothing(cat, options, n)
 			else:
 				return spectrum, referencespectrum, axis, fitweights, noiselevel, sgauss, options, n, cat;
@@ -740,12 +771,12 @@ class anaData(object):
 		if runno > 0:
 			rebin = cat.rbnum[0]
 		else:
-			rebin = input('\nPlease enter the number of old bins to new bins: ')
-			self.rbnum[0] = rebin
+			rebin = eval(input('\nPlease enter the number of old bins to new bins: '))
+			(cat.rbnum).append(rebin)
 		try:
 			rbspec, rbrefspec, rbspectral, rbweights, noise, sgauss, mask = self.__getRebinSpectrum(rebin, self.spec, self.refspec, self.spectralaxis, self.fitweights, cat, runno)
-			return rbspec, rbrefspec, rbspectral, rbweights, noise, sgauss
-		except KeyboardInterrupt, SystemExit:
+			return rbspec, rbrefspec, rbspectral, rbweights, noise, sgauss, mask
+		except (KeyboardInterrupt, SystemExit):
 			uf.exit(cat)
 		except:
 			logger.error('Something went wrong while trying to rebin the spectrum.', exc_info=True)
@@ -757,12 +788,12 @@ class anaData(object):
 		nll = int(np.floor(ol/int(rebin)))
 		nl = nll * rebin
 		mask = int(round(cat.mask/rebin,0))
-		cs = ol/2
-		csn = nl/2
+		cs = int(ol/2)
+		csn = int(nl/2)
 		noiselen = cat.noiselen/int(rebin)
-		censpec = spec[cs-csn:cs+csn+nl%2]
-		censpectral = spectral[cs-csn:cs+csn+nl%2]
-		cenweights = weights[cs-csn:cs+csn+nl%2]
+		censpec = spec[int(cs-csn):int(cs+csn+nl%2)]
+		censpectral = spectral[int(cs-csn):int(cs+csn+nl%2)]
+		cenweights = weights[int(cs-csn):int(cs+csn+nl%2)]
 		rbspec = np.mean(np.reshape(censpec, (nll,rebin)), axis=1)
 		rbspectral = np.mean(np.reshape(censpectral, (nll,rebin)), axis=1)
 		if cat.clean == 'clean':
@@ -770,9 +801,9 @@ class anaData(object):
 			noise = 0.
 			rbweights = np.ones(len(rbspec))*rebin*np.sqrt(self.nobj)
 		else:
-			cenrefspec = refspec[cs-csn:cs+csn+nl%2]
+			cenrefspec = refspec[int(cs-csn):int(cs+csn+nl%2)]
 			rbrefspec = np.mean(np.reshape(cenrefspec, (nll,rebin)), axis=1)
-			noise = np.std( np.array( list(rbspec[:noiselen/2]) + list(rbspec[-noiselen/2:]) ) )
+			noise = np.std( np.array( list(rbspec[:int(noiselen/2)]) + list(rbspec[int(-noiselen/2):]) ) )
 			rbweights = np.ones(len(rbspec))*noise
 		try:
 			if runno == 0:
@@ -780,12 +811,12 @@ class anaData(object):
 			else:
 				try:
 					sgauss, cat = self.fit_one_gauss(rbspec, rbspectral, cat, rbweights)
-				except KeyboardInterrupt, SystemExit:
+				except (KeyboardInterrupt, SystemExit):
 					uf.exit(cat)
 				except:
 					logger.error('Something went wrong while trying to rebin the spectrum.', exc_info=True)
 					uf.earlyexit(cat)
-		except KeyboardInterrupt, SystemExit:
+		except (KeyboardInterrupt, SystemExit):
 			uf.exit(cat)
 		except:
 			logger.error('Something went wrong while trying to rebin the spectrum.', exc_info=True)
@@ -798,7 +829,7 @@ class anaData(object):
 		while check == 0:
 			rbspec, rbrefspec, rbspectral, rbweights, noise, sgauss, mask = self.__determineRebin(cat, self.runno)
 			if self.runno == 0:
-				checkYN = raw_input('\nWould you like to keep this version [y] or rebin again [r] or abort the rebin [a]: ').lower()
+				checkYN = input('\nWould you like to keep this version [y] or rebin again [r] or abort the rebin [a]: ').lower()
 				plt.close()
 				if checkYN == 'y':
 					cat.rebinstatus = True
@@ -815,7 +846,7 @@ class anaData(object):
 					check = 1
 					return rbspec, rbrefspec, rbspectral, rbweights, noise, sgauss, options, n, cat;
 				else:
-					print 'Please choose "y" or "r" or "a". \n'
+					print ('Please choose "y" or "r" or "a". \n')
 					return self.__callRebin(cat, options, n)
 			else:
 				return rbspec, rbrefspec, rbspectral, rbweights, noise, sgauss, options, n, cat
@@ -824,7 +855,7 @@ class anaData(object):
 	def __next_move(self, options, sgauss, cat):
 		plt.close()
 		try:
-			for k in xrange(len(options)):
+			for k in range(len(options)):
 				n = options[k]
 				if n == '1':
 					self.rbspec, self.rbrefspec, self.rbspectralaxis, self.rbfitweights, self.rbnoise, sgauss, options, n, cat = self.__callSmoothing(cat, options, n)
@@ -840,13 +871,13 @@ class anaData(object):
 					if len(options) == 1:
 						self.__getOptions(sgauss, cat)
 				elif n == '5':
-					print '\nExiting. Thank you for your time.\n'
+					print ('\nExiting. Thank you for your time.\n')
 					logger.info('Selected option 5: Exit with out saving any progress.')
 					uf.exit(cat)
 				else:
 					h = 0
 			return cat
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(cat)
 		except:
 			logger.error('Exception occurred:', exc_info=True)
@@ -856,8 +887,8 @@ class anaData(object):
 		
 	def __getOptions(self, sgauss, cat):
 		if self.runno == 0:
-			print "\nYou now have a couple of options:\n\t1. Smooth the spectrum.\n\t2. Fit a number of other functions to the spectrum.\n\t3. Rebin the spectrum.\n\t4. Don't fit anything to the spectrum, but continue with the analysis.\n\t5. Exit this programme without doing anything else. [Will not save anything]"
-			options = raw_input('Please enter the numbers of the option of your next step. (The numbers must be separated by commas): ')
+			print ("\nYou now have a couple of options:\n\t1. Smooth the spectrum.\n\t2. Fit a number of other functions to the spectrum.\n\t3. Rebin the spectrum.\n\t4. Don't fit anything to the spectrum, but continue with the analysis.\n\t5. Exit this programme without doing anything else. [Will not save anything]")
+			options = input('Please enter the numbers of the option of your next step. (The numbers must be separated by commas): ')
 			option = options.strip().split(',')
 			[cat.optnum.append(i) for i in option]
 			try:
@@ -872,7 +903,7 @@ class anaData(object):
 					else:
 						cat = self.__next_move(option, sgauss, cat)
 					return cat
-			except SystemExit, KeyboardInterrupt:
+			except (SystemExit, KeyboardInterrupt):
 				uf.exit(cat)
 			except:
 				logger.error('Exception occurred:', exc_info=True)
@@ -884,8 +915,10 @@ class anaData(object):
 
 
 	def calcSignalNoise(self, flux, axis, sgauss, cat, noise):
-		peak = np.nanmax(flux)
-		cen = len(flux)/2
+		cen = int(len(flux)/2)
+		si = int(cen-cat.mask/2)
+		se = int(cen+1+cat.mask/2)
+		peak = np.nanmax(flux[si:se])
 
 		if cat.clean == 'clean':
 			integrated_snr = 0
@@ -893,32 +926,25 @@ class anaData(object):
 			standard_snr = 0
 		else:
 			standard_snr = abs(peak/noise)
-			integrated_snr = abs(np.sum(flux[cen-cat.mask:cen+1+cat.mask]*(cat.mask*abs(axis[0]-axis[1]))))/( noise * abs(axis[0]-axis[1]) * np.sqrt(cat.mask) )
-			w50loc = [np.argmin(abs(flux[:cen] - 0.5*peak)), np.argmin(abs(flux[cen:] - 0.5*peak))]
-			w50 = abs(axis[w50loc[0]] - axis[w50loc[1]])
+			integrated_snr = (np.sum(flux[si:se]*(abs(axis[0]-axis[1]))))/( noise * abs(axis[0]-axis[1]) * np.sqrt(cat.mask) )
+			w50loc = [np.argmin(abs(flux[si:cen] - 0.5*peak)), np.argmin(abs(flux[cen:se] - 0.5*peak))]
+			w50 = abs(axis[int(w50loc[0]+si)]) + abs(axis[int(w50loc[1]+cen)])
 			alfalfa_snr = abs(( (peak/w50) * (w50*2*cat.restdv.to('km/s').value)**0.5 )/noise)
-		
-		# if 'm / s' in cat.spectralunit.to_string():
-		# 	w50loc = [np.argmin(abs(flux[:cen] - 0.5*peak)), np.argmin(abs(flux[cen:] - 0.5*peak))]
-		# 	w50 = abs(axis[w50loc[0]] - axis[w50loc[1]])
-		# 	alfalfa_snr = abs(( (peak/w50) * (w50*2*cat.restdv.to('km/s').value)**0.5 )/noise)
-		# else:
-		# 	alfalfa_snr = 0
-
+	
 		return standard_snr, alfalfa_snr, integrated_snr	
 
 
 	def __callInitialStats(self, flux, refflux, axis, noise, cat, weights=None, smooth=None, rebin=0):
 		try:
 			sgauss, cat = self.fit_one_gauss(flux, axis, cat, weights)
-		except KeyboardInterrupt, SystemExit:
+		except (KeyboardInterrupt, SystemExit):
 			uf.exit(cat)
 		except: 
 			logger.error("Couldn't fit the first Gaussian.", exc_info=True)
 			uf.earlyexit(cat)
 		try:
 			percentage = self.areaabovenoise(sgauss, noise, cat)
-		except KeyboardInterrupt, SystemExit:
+		except (KeyboardInterrupt, SystemExit):
 			uf.exit(cat)
 		except: 
 			logger.error("Failed at calculating percentage of spectrum above the noise", exc_info=True)
@@ -926,7 +952,7 @@ class anaData(object):
 		try:
 			p, sig = self.calcPvalue(sgauss, flux, weights)
 			snr, sna, isn = self.calcSignalNoise(flux, axis, sgauss, cat, noise)
-		except KeyboardInterrupt, SystemExit:
+		except (KeyboardInterrupt, SystemExit):
 			uf.exit(cat)
 		except: 
 			logger.error("Failed determining the spectrum statistics.", exc_info=True)
@@ -952,24 +978,26 @@ class anaData(object):
 		stats2 = 'The ALFALFA signal-to-noise ratio is %.2g'%sna
 		stats3 = "The single Gaussian fitted to the stacked spectrum has %s%.2g sigma significance (p-value = %s)"%(ex,sig,pval)
 		stats4 = "%.1f %% of the stacked spectrum is above 1 sigma noise."%percentage
+		stats5 = "The approximate full width half maximum of Gaussian fit is %.1f km/s"%cat.w50
 
-		line1 = '   |--'+'-'*100+'|\n'
-		line2 = '   |  '+' '*100+'|\n'
-		line3 = '   |  '+info+' '*(100-len(info))+'|\n'
-		line4 = '   |  '+stats1+' '*(100-len(stats1))+'|\n'
-		line5 = '   |  '+stats0+' '*(100-len(stats0))+'|\n'
-		line6 = '   |  '+stats2+' '*(100-len(stats2))+'|\n'
-		line7 = '   |  '+stats3+' '*(100-len(stats3))+'|\n'
-		line8 = '   |  '+stats4+' '*(100-len(stats4))+'|\n'
-		line9 = '   |  '+' '*100+'|\n'
-		line0 = '   |--'+'-'*100+'|\n'
-		displaytext = line1 + line2 + line3 + line4 + line5 + line6 + line7 + line8 + line9 + line0
-		print '\n', displaytext
+		line1 = '  |--'+'-'*105+'|\n'
+		line2 = '   |  '+' '*105+'|\n'
+		line3 = '   |  '+info+' '*(105-len(info))+'|\n'
+		line4 = '   |  '+stats5+' '*(105-len(stats5))+'|\n'
+		line5 = '   |  '+stats1+' '*(105-len(stats1))+'|\n'
+		line6 = '   |  '+stats0+' '*(105-len(stats0))+'|\n'
+		line7 = '   |  '+stats2+' '*(105-len(stats2))+'|\n'
+		line8 = '   |  '+stats3+' '*(105-len(stats3))+'|\n'
+		line9 = '   |  '+stats4+' '*(105-len(stats4))+'|\n'
+		line10 = '   |  '+' '*105+'|\n'
+		line11 = '   |--'+'-'*105+'|\n'
+		displaytext = line1 + line2 + line3 + line4 + line5 + line6 + line7 + line8 + line9 + line10 + line11
+		print ('\n', displaytext)
 		logger.info(begin+displaytext)
 		
 		try:
 			self.__plot_basic(noise, sgauss, flux, refflux, axis, cat=cat, rebin=rebin, smooth=smooth)
-		except KeyboardInterrupt, SystemExit:
+		except (KeyboardInterrupt, SystemExit):
 			uf.exit(cat)
 		except: 
 			logger.error("Failed plotting the diagnostic plot.", exc_info=True)
@@ -990,7 +1018,7 @@ class anaData(object):
 				uf.earlyexit(cat)
 			self.noiselevel = np.std( np.array( list(self.spec[:cat.maskstart])+list(self.spec[cat.maskend:] ) ))
 			self.fitweights = np.ones(len(self.spec))*self.noiselevel
-			x = (range(1,self.nobj+1,1))
+			x = (np.arange(1,self.nobj+1,1))
 			y = (np.array(self.stackrms))
 			params, cov = opt.curve_fit(uf.strlinelog, x, y, p0=[y[0], 0.], absolute_sigma=False)
 			self.averms1 = params[0]
@@ -1002,22 +1030,22 @@ class anaData(object):
 
 			percentage, sgauss, cat = self.__callInitialStats(self.spec, self.refspec, self.spectralaxis, self.noiselevel, cat, self.fitweights)
 			widhappy = 'n'
-			changewid = raw_input('\nWould you like to change the width of the Integration Window (y/n): ')
+			changewid = input('\nWould you like to change the width of the Integration Window (y/n): ')
 			if changewid.lower() == 'y':
 				while widhappy != 'y':
-					cat.maxgalw = input('Please enter the new Integration Width in %s: '%(cat.restdv.unit.to_string()))*cat.restdv.unit
+					cat.maxgalw = eval(input('Please enter the new Integration Width in %s: '%(cat.restdv.unit.to_string()))) * cat.restdv.unit
 					cat.mask = (cat.maxgalw/cat.restdv).value
 					percentage, sgauss, cat = self.__callInitialStats(self.spec, self.refspec, self.spectralaxis, self.noiselevel, cat, self.fitweights)
-					widhappy = raw_input('Are you happy with the new width [y/n]? ').lower()
+					widhappy = input('Are you happy with the new width [y/n]? ').lower()
 				logger.info('Changed Integration Window to %i km/s'%cat.maxgalw.value)
 			else:
 				h = 0
 		try:
 			cat = self.__getOptions(sgauss, cat)
-		except SystemExit, KeyboardInterrupt:
+		except (SystemExit, KeyboardInterrupt):
 			uf.exit(cat)
 		except:
-			print '\nPlease select at least one of the options below.'
+			print ('\nPlease select at least one of the options below.')
 			cat = self.__getOptions(sgauss, cat)
 			cat.rebinstatus = self.rebinstatus
 		return cat
@@ -1028,46 +1056,53 @@ class anaData(object):
 			names = [self.functions[7]]
 			if uncert == False:
 				col2 = np.array([self.intflux[7]])
+				col5 = np.array([cat.w50])
 				if cat.stackunit == astun.Jy:
 					col2 = col2*cat.restdv*cat.stackunit
 				else:
 					col2 = col2*cat.stackunit
-				data = asttab.Table([names, col2], names=['Fitted Function','Integrated Flux'])
+				data = asttab.Table([names, col2, col5], names=['Fitted Function','Integrated Flux', 'FWHM'])
 				data['Integrated Flux'].unit = col2.unit
+				data['FWHM'].unit = astun.km/astun.s
 			else:
 				col1 = np.array([self.intflux[:,0][7]])
 				col2 = np.array([self.intflux[:,1][7]])
+				col5 = np.array([cat.w50])
 				if cat.stackunit == astun.Jy:
 					col1 = col1*cat.restdv*cat.stackunit
 					col2 = col2*cat.restdv*cat.stackunit
 				else:
 					col1 = col1*cat.stackunit
 					col2 = col2*cat.stackunit
-				data = asttab.Table([names, col1, col2], names=['Fitted Function','Integrated Flux', 'Uncertainty Integrated Flux'])
+				data = asttab.Table([names, col1, col2, col5], names=['Fitted Function','Integrated Flux', 'Uncertainty Integrated Flux', 'FWHM'])
 				data['Integrated Flux'].unit = col1.unit
 				data['Uncertainty Integrated Flux'].unit = col2.unit
+				data['FWHM'].unit = astun.km/astun.s
 
 
 			astasc.write(data, cat.outloc+'IntegratedFlux_'+cat.runtime+'.csv', format='ecsv')	
 			logger.info('Saved Integrated Flux to disk.')
 
 		else:
-			ind = np.array([int(eval(i)-1) for i in cat.funcnum])
+			ind = np.array([int(eval(i)-1) for i in cat.funcnum], dtype=np.int_)
 			ind = np.append(ind, 7)
+			self.fitw50 = np.append(self.fitw50, cat.w50)
 			if len(ind) == 0:
 				h = 0.
 			else:
 				names = [self.functions[int(i)] for i in ind]
 				col3 = self.fitrms[:,0][ind]
 				col4 = self.fitrms[:,1][ind]
+				col5 = [self.fitw50[int(i)] for i in ind]
 				if uncert == False:
 					col2 = self.intflux[ind]
 					if cat.stackunit == astun.Jy:
 						col2 = col2*cat.restdv*cat.stackunit
 					else:
 						col2 = col2*cat.stackunit
-					data = asttab.Table([names, col2, col3, col4], names=['Fitted Function','Integrated Flux','Fit RMS', 'Fit ChiSquare'])	
+					data = asttab.Table([names, col2, col3, col4, col5], names=['Fitted Function','Integrated Flux','Fit RMS', 'Fit ChiSquare', 'FWHM'])	
 					data['Integrated Flux'].unit = col2.unit
+					data['FWHM'].unit = astun.km/astun.s
 				else:
 					col1 = self.intflux[:,0][ind]
 					col2 = self.intflux[:,1][ind]
@@ -1078,15 +1113,15 @@ class anaData(object):
 						col1 = col1*cat.stackunit
 						col2 = col2*cat.stackunit
 
-					data = asttab.Table([names, col1, col2, col3, col4], names=['Fitted Function','Integrated Flux', 'Uncertainty Integrated Flux','Fit RMS', 'Fit ChiSquare'])
+					data = asttab.Table([names, col1, col2, col3, col4, col5], names=['Fitted Function','Integrated Flux', 'Uncertainty Integrated Flux','Fit RMS', 'Fit ChiSquare', 'FWHM'])
 					data['Integrated Flux'].unit = col1.unit
 					data['Uncertainty Integrated Flux'].unit = col2.unit
+					data['FWHM'].unit = astun.km/astun.s
 
 				astasc.write(data, cat.outloc+'IntegratedFlux_'+cat.runtime+'.csv', format='ecsv')	
 				logger.info('Saved Integrated Flux to disk.')
-
-				self.fitparam = [col for col in self.fitparam if col != '']
-				self.fitparamuncert = [col for col in self.fitparamuncert if col != '']
+				self.fitparam = [col for col in self.fitparam if col is not None]
+				self.fitparamuncert = [col for col in self.fitparamuncert if col is not None]
 				
 
 
@@ -1097,7 +1132,7 @@ class anaData(object):
 		thead['AveRMS_2'] = (self.averms2, 'Jy')
 		thead['AveSig'] = (self.averagenoise, 'Jy')
 
-		if self.rebinstatus == True and cat.uncert == 'n':
+		if cat.rebinstatus == True and cat.uncert == 'n':
 			spec = self.rbspec
 			axis = self.rbspectralaxis
 			refspec = self.rbrefspec
@@ -1110,7 +1145,7 @@ class anaData(object):
 				noise = np.zeros(10)
 			else:
 				noise = self.stackrms
-		elif self.rebinstatus == False and cat.uncert == 'n':
+		elif cat.rebinstatus == False and cat.uncert == 'n':
 			spec = self.spec
 			axis = self.spectralaxis
 			refspec = self.refspec
@@ -1153,7 +1188,6 @@ class anaData(object):
 				noise = self.stackrms
 				noiseuncert = self.noiseuncert
 
-
 		## Table 1: Spectrum Information
 		d1 = astfit.Column(name='Stacked Spectrum', format='D', unit=cat.stackunit.to_string(), array=spec)
 		d2 = astfit.Column(name='Stacked Spectrum Uncertainty', format='D', unit=cat.stackunit.to_string(), array=specuncert)
@@ -1169,7 +1203,6 @@ class anaData(object):
 		col1 = astfit.Column(name='Stacked RMS Noise', format='D', unit=cat.stackunit.to_string(), array=noise)
 		col2 = astfit.Column(name='Stacked RMS Noise Uncertainty', format='D', unit=cat.stackunit.to_string(), array=noiseuncert)
 		noisetable = astfit.BinTableHDU.from_columns([col1,col2])
-
 		if '4' in cat.optnum or '4.' in cat.optnum:
 			## Constructing the full HDU
 			prihdu = astfit.PrimaryHDU(header=thead)
@@ -1216,7 +1249,7 @@ class anaData(object):
 			else:
 				ax.plot(X, np.log10(np.array(self.stackrms)), 'ko')
 			ax.plot(X, np.log10(self.averagenoise/np.sqrt(X)),'g-')
-			ax.set_ylabel(r'Stacked Average Noise Flux ($\mathrm{Jy}$)')
+			ax.set_ylabel(r'Stacked Average Noise ($\mathrm{Jy}$)')
 			ax.set_xscale('log')
 			yyorig = ax.get_yticks()
 			majorloc = np.arange(int(yyorig[0]), int(yyorig[-1])+1., 1.)
@@ -1242,28 +1275,27 @@ class anaData(object):
 		if astun.Jy == cat.stackunit:
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
-				unitstr = r'($\mathrm{mJy}$)'
+				unitstr = r'Average Stacked Flux Density ($\mathrm{mJy}$)'
 			elif max(spec) < 1E-3:
 				conv = 1E6
-				unitstr = r'($\mu \mathrm{Jy}$)'
+				unitstr = r'Average Stacked Flux Density ($\mathrm{\mu Jy}$)'
 			else:
 				conv = 1.
-				unitstr = r'($\mathrm{Jy}$)'
+				unitstr = 'Average Stacked Flux Density ($\mathrm{Jy}$)'
 		elif uf.msun == cat.stackunit:
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]
-			if masexp[0] == '0':
-				masexp = masexp[1]
 			conv = 1./eval('1E%s'%masexp)
-			unitstr = r'($10^{%i} \, \mathrm{M}_\odot$)'%float(masexp)
+			unitstr = r'Average Stacked Mass ($10^{%i} \, \mathrm{M_\odot/chan}$)'%float(masexp)
 		elif uf.gasfrac == cat.stackunit:
 			conv = 1.
-			unitstr = r'(M$_\mathrm{HI}$/M$_\ast$)'
+			unitstr = r'Average Stacked Gas Fraction (M$_\mathrm{HI}$/M$_\ast$)'
 		else:
 			conv = 1.
-			unitstr = ''
-		plt.ylabel(r'Average Stacked Flux %s'%unitstr)
+			unitstr = 'Average Stacked Quantity'
+
+		plt.ylabel(unitstr)
 		plt.xlim([spectral[0],spectral[-1]])
 		xx, locs = plt.xticks()
 		ll = ["%5.1f" % a for a in xx]
@@ -1290,6 +1322,31 @@ class anaData(object):
 
 		## Histogram of integrated flux
 		if uncert == True:
+
+			if astun.Jy == cat.stackunit:
+				if 1E-3 < max(spec) < 1E-1:
+					conv = 1E3
+					unitstr = r'Ave. Stacked Flux Density ($\mathrm{mJy}$)'
+				elif max(spec) < 1E-3:
+					conv = 1E6
+					unitstr = r'Ave. Stacked Flux Density ($\mathrm{\mu Jy}$)'
+				else:
+					conv = 1.
+					unitstr = 'Ave Stacked Flux Density ($\mathrm{Jy}$)'
+			elif uf.msun == cat.stackunit:
+				masstext = '%.3E'%np.max(spec)
+				masi = masstext.split('E')[0]
+				masexp = masstext.split('E')[1]
+				conv = 1./eval('1E%s'%masexp)
+				unitstr = r'Ave. Stacked Mass ($10^{%i} \, \mathrm{M_\odot/chan}$)'%float(masexp)
+			elif uf.gasfrac == cat.stackunit:
+				conv = 1.
+				unitstr = r'Ave. Stacked Gas Fraction (M$_\mathrm{HI}$/M$_\ast$)'
+			else:
+				conv = 1.
+				unitstr = 'Ave. Stacked Quantity'
+
+
 			if '4' in cat.optnum or '4.' in cat.optnum:
 				options = 7
 			else:
@@ -1300,7 +1357,7 @@ class anaData(object):
 				plt.figure(3, figsize=( 8,6 ), facecolor='white')
 				fname = self.functions[options]
 				plt.title(fname)
-				plt.xlabel(r'Average Stacked Flux %s'%unitstr)
+				plt.xlabel(unitstr)
 				flux = allflux*conv
 				plt.hist( flux[options], bins=20)
 				xx, locs = plt.xticks()
@@ -1321,7 +1378,7 @@ class anaData(object):
 					## top row	
 					grid[0].append(fig.add_subplot(gs[0,int(n/2.)]))				
 					grid[0][int(n/2.)].set_title(self.functions[options[n]], fontsize=11)
-					grid[0][int(n/2.)].set_xlabel(r'Average Stacked Flux %s'%unitstr)
+					grid[0][int(n/2.)].set_xlabel(unitstr)
 					grid[0][int(n/2.)].hist((allflux[options[n]]*conv), bins=20)
 					grid[0][int(n/2.)].set_xlim((allflux[options[n]]*conv).min(), (allflux[options[n]]*conv).max())
 					xx = grid[0][int(n/2.)].get_xticks()
@@ -1334,7 +1391,7 @@ class anaData(object):
 					if (n+1) != len(options):
 						grid[1].append(fig.add_subplot(gs[1,int(n/2.)]))
 						grid[1][int(n/2.)].set_title(self.functions[options[n+1]], fontsize=11)
-						grid[1][int(n/2.)].set_xlabel(r'Average Stacked Flux %s'%unitstr)
+						grid[1][int(n/2.)].set_xlabel(unitstr)
 						grid[1][int(n/2.)].hist((allflux[options[n+1]]*conv), bins=20)
 						grid[1][int(n/2.)].set_xlim((allflux[options[n+1]]*conv).min(), (allflux[options[n+1]]*conv).max())
 						xx = grid[1][int(n/2.)].get_xticks()
@@ -1363,7 +1420,7 @@ class anaData(object):
 
 					ax2 = fig.add_subplot(gs[1,-1])
 					ax2.set_title('RMS of Stacked Spectrum', fontsize=11)
-					ax2.set_xlabel(r'Average Stacked Flux %s'%unitstr)
+					ax2.set_xlabel(unitstr)
 					ax2.hist(extra[1]*conv, bins=20, color='limegreen')
 					ax2.set_xlim((extra[1]*conv).min(), (extra[1]*conv).max())
 					xx = ax2.get_xticks()
@@ -1390,23 +1447,37 @@ class anaData(object):
 
 
 	def analyse_data(self, other, cat, runno):
-		self.runno = runno
-		self.__fillInitial(other, cat, runno)
-		cat = self.__callAnalysis(cat)
-		self.intflux[7] = abs(np.nansum(self.spec[ cat.maskstart: cat.maskend ]))
-		if cat.uncert == 'n':
-			# print '\nSaving data to ouput location'
-			logger.info('Saving data to ouput location.')
-			self.saveResults(cat, False)
-			if cat.rebinstatus == True:
-				self.savePlots(cat, uncert=False, disp=False, allflux=None, spec=self.rbspec, spectral=self.rbspectralaxis, refspec=self.rbrefspec, specuncert=self.specuncert)
+		try:
+			self.runno = runno
+			self.__fillInitial(other, cat, runno)
+			cat = self.__callAnalysis(cat)
+			self.intflux[7] = abs(np.nansum(self.spec[ cat.maskstart: cat.maskend ]))
+			if cat.stackunit == astun.Jy:
+				cat.avemass = (2.356E+05 * ( cat.mediandistance**2 ) * (np.nansum( self.spec[ cat.maskstart: cat.maskend ] * cat.restdv.value)) ) / (1. + cat.medianz)
+			elif cat.stackunit == uf.gasfrac:
+				cat.avemass = self.intflux[7] * (cat.avesm).to(uf.msun, equivalencies=uf.log10conv)
 			else:
-				self.savePlots(cat, uncert=False, disp=False, allflux=None, spec=self.spec, spectral=self.spectralaxis, refspec=self.refspec, specuncert=self.specuncert)
-		else: 
-			h = 0
+				cat.avemass = self.intflux[7]
 
+			if cat.uncert == 'n':
+				logger.info('Saving data to ouput location.')
+				self.saveResults(cat, False)
+				if cat.rebinstatus == True:
+					self.savePlots(cat, uncert=False, disp=False, allflux=None, spec=self.rbspec, spectral=self.rbspectralaxis, refspec=self.rbrefspec, specuncert=self.specuncert)
+				else:
+					self.savePlots(cat, uncert=False, disp=False, allflux=None, spec=self.spec, spectral=self.spectralaxis, refspec=self.refspec, specuncert=self.specuncert)
+			else: 
+				h = 0
+			cat.rebinstatus = self.rebinstatus
 
-		cat.rebinstatus = self.rebinstatus
-		return cat
-
+			return cat
+		except KeyboardInterrupt:
+			uf.earlyexit(cat)
+			raise sys.exit()
+		except SystemExit:
+			raise sys.exit()
+		except:
+			logger.error('Something happened :(', exc_info=True)
+			uf.earlyexit(cat)
+			raise sys.exit()
 

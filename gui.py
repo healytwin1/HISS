@@ -1,6 +1,13 @@
-import Tkinter as tk
-import tkFileDialog as tkf
-import tkMessageBox as tkm
+import sys
+h = sys.version_info
+if (sys.version_info < (3, 0)):
+    import Tkinter as tk
+    import tkFileDialog as tkf
+else:
+    import tkinter as tk
+    import tkinter.filedialog as tkf 
+
+
 import sys, os, linecache
 import json, io
 import matplotlib
@@ -22,14 +29,14 @@ def PrintException():
     filename = f.f_code.co_filename
     linecache.checkcache(filename)
     line = linecache.getline(filename, lineno, f.f_globals)
-    print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
+    print('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
 
 
 class hiss(tk.Frame):
 
     def __init__(self):
         self.root = tk.Tk()
-        tk.Frame.__init__(self, self.root, width=1000)
+        tk.Frame.__init__(self, self.root, width=1025)
 
         ## necessary variables
         self.catalogue = None
@@ -78,7 +85,8 @@ class hiss(tk.Frame):
 
         ## variables to be saved to config file
         self.CatalogueFilename = None
-        self.CatalogueColumnNumbers = [None, None, None, None, None, None]
+        self.CatalogueColumnNumbers = [-1, -1, -1, -1, -1, -1]
+        self.CatalogueColumnNumbersUpdated = ["", "", "", "", ""]
         self.OutputLocation = './'
         self.SpectrumLocation = None
         self.CatalogueFilename = None
@@ -113,8 +121,8 @@ class hiss(tk.Frame):
         self.master.iconname('HISS')
         tk.Label(self.root, text='Welcome to HI Stacking Software', font=(None, 24, "bold")).pack(side=tk.TOP)
         tk.Label(self.root, text='\nThis interface allows you (the user) to enter values required for stacking. Once you have entered a value into the grey boxes, hit <Return> - if the value is accepted, \nthe box will turn green. When you are ready, click on the Stack button at the bottom right of the window. If there are any missing values critical for stacking,\nthe relevant boxes will be highlighted in red.\n', font=(None, 14, "italic"), fg='darkviolet', bg='whitesmoke').pack(side=tk.TOP, pady=5)
-        self.mastercanvas = tk.Canvas(self.root, width=1000, height=500, background="#ffffff", bd=2)
-        self.frame = tk.Frame(self.mastercanvas, background="#ffffff", height=920, width=900)
+        self.mastercanvas = tk.Canvas(self.root, width=1000, height=610, background="#ffffff", bd=2)
+        self.frame = tk.Frame(self.mastercanvas, background="#ffffff", height=1000, width=900)
         self.vsb = tk.Scrollbar(self.root, orient="vertical", command=self.mastercanvas.yview)
         self.mastercanvas.configure(yscrollcommand=self.vsb.set)
         self.vsb.pack(side="right", fill="y")
@@ -163,13 +171,13 @@ class hiss(tk.Frame):
         self.cataloguestellarmass.grid(sticky="W", in_=self.catalogueframe, row=3, column=11)
         self.catalogueotherdata.grid(sticky="W", in_=self.catalogueframe, row=3, column=13)
 
-        self.fig = plt.figure(figsize=(14,2))
+        self.fig = plt.figure(figsize=(11,2))
         self.ax = self.fig.add_axes([0.01, 0.05, 0.97, 0.9])
         self.ax.annotate('Sample Catalogue', xy=(0.5,0.5), xycoords='axes fraction', horizontalalignment='center', verticalalignment='center')
         self.ax.plot([0.1, 0.1, 0.99, 0.99, 0.1], [0.45, 0.99, 0.99, 0.45, 0.45], 'k-')
         self.ax.axis('off')
         self.canvasplot = matplotlib.backends.backend_tkagg.FigureCanvasTkAgg(self.fig, master=self.mastercanvas)
-        self.canvasplot.show()
+        self.canvasplot.draw()
         self.canvasplot.get_tk_widget().grid(sticky="n",in_=self.catalogueframe, row=4,column=1, columnspan=13)
          
 
@@ -287,7 +295,7 @@ class hiss(tk.Frame):
         tk.Radiobutton(self.stackframe, text='W = 1', value=1, variable=self.WeightOptionVar, command=self.__getWeightOption).grid(sticky="W", in_=self.stackframe, column=4, row=8)
         tk.Radiobutton(self.stackframe, text='W = 1/rms', value=2, variable=self.WeightOptionVar, command=self.__getWeightOption).grid(sticky="W", in_=self.stackframe, column=5, row=8)
         tk.Radiobutton(self.stackframe, text='W = 1/rms^2', value=3, variable=self.WeightOptionVar, command=self.__getWeightOption).grid(sticky="W", in_=self.stackframe, column=6, row=8)
-        tk.Radiobutton(self.stackframe, text='W = Dl^2/rms^2', value=4, variable=self.WeightOptionVar, command=self.__getWeightOption).grid(sticky="W", in_=self.stackframe, column=7, row=8)
+        tk.Radiobutton(self.stackframe, text='W = 1/(rms Dl^2)^2', value=4, variable=self.WeightOptionVar, command=self.__getWeightOption).grid(sticky="W", in_=self.stackframe, column=7, row=8)
 
         tk.Label(self.stackframe, text='Stack entire catalogue?').grid(sticky='W', in_=self.stackframe, row=9, column=1, columnspan=2)
         self.stackentirecatY = tk.Radiobutton(self.stackframe,text='Y', variable=self.StackEntireCatalogueYNVar, value='y', state=tk.DISABLED, command=self.__getNumberStackObjects)
@@ -387,7 +395,7 @@ class hiss(tk.Frame):
         self.CatalogueFilename = tkf.askopenfilename(title='Select catalogue file', initialdir=initialdir)
         try:
             self.catalogue = astasc.read(self.CatalogueFilename)
-            if os.path.exists(self.CatalogueFilename):
+            if os.path.exists(self.CatalogueFilename) is True:
                 self.CatalogueFilenameEntry.config(background='lightgreen')
                 self.CatalogueFilenameVar.set(self.CatalogueFilename)
                 
@@ -408,6 +416,7 @@ class hiss(tk.Frame):
             self.CatalogueFilenameEntry.config(background='tomato')
             self.CatalogueFilename = None
             self.CatalogueFilenameVar.set('')
+            PrintException()
         return
 
     def __getCatalogueColumnNumbers(self):
@@ -432,7 +441,7 @@ class hiss(tk.Frame):
     def __getValidateColumnNumbersObjID(self, event):
         self.CatalogueColumnNumbers[0] = self.ObjectIDVar.get()-1
         if (self.CatalogueColumnNumbers[0] >= 0) and (self.CatalogueColumnNumbers[0] < len(self.catalogue.colnames)):
-            self.catalogueobjid.config(background='plum')
+            self.catalogueobjid.config(background=r'plum')
             self.columnlist.append('Object ID')
             self.__showCatalogue()
         else:
@@ -484,7 +493,7 @@ class hiss(tk.Frame):
             self.columnlist.append('Stellar Mass')
             self.__showCatalogue() 
         else:
-            self.CatalogueColumnNumbers[4] = None
+            self.CatalogueColumnNumbers[4] = -1
             self.cataloguestellarmass.config(background='tomato')
             self.__showCatalogue()
         return 
@@ -496,7 +505,7 @@ class hiss(tk.Frame):
             self.columnlist.append('Other Data')
             self.__showCatalogue() 
         else:
-            self.CatalogueColumnNumbers[5] = None
+            self.CatalogueColumnNumbers[5] = -1
             self.catalogueotherdata.config(background='tomato')
             self.__showCatalogue()
         return 
@@ -504,25 +513,26 @@ class hiss(tk.Frame):
     def __showCatalogue(self):
         tab = self.catalogue[:5]
 
-        colours = ['plum', 'paleturquoise', 'hotpink','darkseagreen', 'cornsilk', 'skyblue']
-        tabcolors = ['w']*len(self.catalogue.colnames)
+        colours = [np.unicode_('plum'), np.unicode_('paleturquoise'), np.unicode_('hotpink'),np.unicode_('darkseagreen'), np.unicode_('cornsilk'), np.unicode_('skyblue')]
+        tabcolors = [np.unicode_('w')]*len(self.catalogue.colnames)
         colind = np.where(np.array(self.CatalogueColumnNumbers) >= 0)[0]
-        cellcolours = np.chararray((5, len(self.catalogue.colnames)), itemsize=20)
-        cellcolours[:] = 'w'
-        for i in xrange(len(colind)):
+        cellcolours = np.chararray((5, len(self.catalogue.colnames)), itemsize=20, unicode=True)
+        cellcolours[:] = np.unicode_('white')
+        for i in range(len(colind)):
             j = colind[i]
             k = self.CatalogueColumnNumbers[j]
-            tabcolors[k] = colours[j]
-            for n in xrange(5):
-                cellcolours[n,k] = colours[j]
+            tabcolors[k] = np.unicode_(colours[j])
+            for n in range(5):
+                cellcolours[n,k] = np.unicode_(colours[j])
         try:
             plt.cla()           
             thetable = self.ax.table(cellText=tab.as_array(), colLabels=tab.colnames, colColours=tabcolors, cellColours=cellcolours, loc='center')#
             thetable.set_fontsize(10)
             thetable.auto_set_font_size(False)
             self.ax.axis('off')
-            self.canvasplot.show()
+            self.canvasplot.draw()
         except:
+            # print(cellcolours)
             PrintException()
         return
 
@@ -1065,6 +1075,9 @@ class hiss(tk.Frame):
 
 
     def __dumptofile(self):
+
+        self.CatalogueColumnNumbersUpdated = [ e for e in self.CatalogueColumnNumbers if e > 0 ]
+
         config = {
             'CatalogueFilename': self.CatalogueFilename,
             'CatalogueColumnNumbers': self.CatalogueColumnNumbers,
@@ -1100,7 +1113,7 @@ class hiss(tk.Frame):
         configfile = json.dumps(config,
               indent=4, sort_keys=True,
               separators=(',', ': '))
-        print >>outfile, configfile
+        print(configfile, file=outfile)
         outfile.close()
         
         return

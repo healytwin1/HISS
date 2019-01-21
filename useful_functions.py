@@ -22,6 +22,7 @@ msun = astun.def_unit(
     prefixes=True
     )
 
+
 gasfrac = astun.def_unit(
     s = 'gas fraction',
     represents=astun.Msun/astun.Msun,
@@ -47,7 +48,7 @@ log10conv = [
 
 def maskTable(table):
     cols = table.colnames
-    for i in xrange(len(cols)):
+    for i in range(len(cols)):
         indices = np.where(table[cols[i]].data == 0.)[0]
         mask = np.array([False]*len(table))
         mask[indices] = np.array([True]*len(indices))
@@ -67,35 +68,41 @@ def checkkeys(config, key):
 
 def convertable(table):
     colnames = table.colnames
-    for i in xrange(1, len(colnames)):
+    for i in range(1, len(colnames)):
         firstentry = table[colnames[i]][0]
-        print (firstentry, type(firstentry))
         if (type(firstentry) == np.str):
             continue
         else:
             column = (table[colnames[i]].data).astype(float)
             ref = np.min(column)
-        if (len(str(ref).split('.')[0]) > 3 and ref) > 1 or (len(str(ref).split('.')[1]) > 3 and ref < 1):
+        if ('RMS' in colnames[i]) or ('chi' in colnames[i]) or ('FWHM' in colnames[i]):
+            for j in range(len(table)):
+                table[colnames[i]][j] = round(table[colnames[i]][j], 2)
+        elif (len(str(ref).split('.')[0]) > 3 and ref) > 1 or (len(str(ref).split('.')[1]) > 3 and ref < 1):
             refstr = '%.2E'%ref
             conv = eval('1E%i'%float(refstr.split('E')[1]))
-            for j in xrange(len(table)):
+            for j in range(len(table)):
                 table[colnames[i]][j] = round(table[colnames[i]][j]/conv, 2)
             colnames[i] += ' (x 10^%i)'%float(refstr.split('E')[1])
+        elif ('Fitted' in colnames[i]):
+            for j in range(len(table)):
+                table[colnames[i]][j] = np.unicode(table[colnames[i]][j])
         else:
-            for j in xrange(len(table)):
+            for j in range(len(table)):
                 table[colnames[i]][j] = round(table[colnames[i]][j], 2)
+        
     newtab = asttab.Table(names=colnames, data=table.as_array())
     return newtab
 
 
-
-
-
 def bashfriendlypath(path):
     char = [' ', '-']
-    for i in xrange(len(char)):
-        path = path.replace(char[i], '\\%s'%char[i])
-    return path
+    if '\\' in path:
+        return path
+    else:
+        for i in range(len(char)):
+            path = path.replace(char[i], '\\%s'%char[i])
+        return path
 
 
 def exit(cat):
@@ -131,45 +138,55 @@ def earlyexit(cat):
 
 def latexexponent(value):
     masstext = '%.2E'%value
+    masslist = masstext.split('E')
+    if len(masslist) > 1:
+        masexp = masstext.split('E')[1]
+    else:
+        masexp = '0'
     masb = masstext.split('E')[0]
-    masexp = masstext.split('E')[1]
     lstr = r'$%s \times 10^{%i}$'%(masb, float(masexp))
     return lstr
 
 
 def latextablestr(table, cat):
     tablestr = r' '
-    for colnm in xrange(len(table.colnames)):
+    for colnm in range(len(table.colnames)):
         tablestr += r'\textbf{%s}'% table.colnames[colnm]
         if colnm == len(table.colnames)-1:
             tablestr += r' \\'
         else:
             tablestr += r' & '
-    for colnm in xrange(len(table.colnames)):
+    for colnm in range(len(table.colnames)):
         if str(table[table.colnames[colnm]].unit) == 'None':
             unit = ''
-        else:
+        elif 'Flux' in table.colnames[colnm]:
             if cat.stackunit == msun:
                 unit = r'(M$_\odot$)'
             elif cat.stackunit == gasfrac:
                 unit = r'(M$_\mathrm{HI}$/M$_\ast$)'
             else:
                 unit = '(Jy km/s)'
+        elif np.unicode(table.colnames[colnm]) == np.unicode('FWHM'):
+            unit = '(km/s)'
+        else:
+            unit = ''
         tablestr += r'%s'%unit
         if colnm == len(table.colnames)-1:
             tablestr += r' \\\hline '
         else:
             tablestr += r' & '
-    for rownm in xrange(len(table)):
-        for colnm in xrange(len(table.colnames)):
-
-            if type(table[table.colnames[colnm]][rownm]) == np.string_:
-                tablestr += r'%s'% table[table.colnames[colnm]][rownm]
+    for rownm in range(len(table)):
+        for colnm in range(len(table.colnames)):
+            if (type(table[table.colnames[colnm]][rownm]) == str) or (type(table[table.colnames[colnm]][rownm]) == np.str_):
+                tablestr += r'%s'% np.unicode(table[table.colnames[colnm]][rownm])
             else:
-                if type(table[table.colnames[colnm]][rownm]) == np.int32:
+                if (type(table[table.colnames[colnm]][rownm]) == int) or (type(table[table.colnames[colnm]][rownm]) == np.int_) :
                     tablestr += r'%i'% table[table.colnames[colnm]][rownm]
+                elif ('FWHM' in table.colnames[colnm]) or ('chi' in table.colnames[colnm]):
+                    numstr = r'%.1f'%round(table[table.colnames[colnm]][rownm],1)
+                    tablestr += numstr
                 else:
-                    numstr = r'%10.3g'% table[table.colnames[colnm]][rownm]
+                    numstr = r'%10.2g'%table[table.colnames[colnm]][rownm]
                     if 'E' in numstr or 'e' in numstr:
                         numstr = latexexponent(table[table.colnames[colnm]][rownm])
                         tablestr += numstr
@@ -200,19 +217,20 @@ def progressbar(frac, pbar):
     if len(pbar) == 0:
         l = '0%'
         pbar = '0%'
-        sys.stdout.write(l)
-        sys.stdout.flush()
+        print( l, end='', sep='', file=sys.stdout, flush=True )
+        # sys.stdout.write(l)
+        # sys.stdout.flush()
         return pbar
-    elif frac%10 == 0 and frac%2 == 0:
+    elif (frac%10 == 0) and (frac%2 == 0):
         if (str(frac)+'%') in pbar:
             return pbar
         else:
             dts=''
-            if frac > 5 and pbar[-4:] != '....':
+            if (frac > 5) and (pbar[-4:] != '....'):
                 sub = pbar[-4:]
                 if '%' in sub:
-                    loc = sub.find('%')
-                    if loc ==len(sub)-1:
+                    loc = int(sub.find('%'))
+                    if loc == len(sub)-1:
                         dts = '.'*4
                     else:
                         cnt = sub[loc:].count('.')
@@ -225,17 +243,20 @@ def progressbar(frac, pbar):
                 l += '\n'
             else:
                 h = 0
-            sys.stdout.write(l)
-            sys.stdout.flush()
+            print( l, end='', sep='', file=sys.stdout, flush=True )
+            # sys.stdout.write(l)
+            # sys.stdout.flush()
             return pbar+l
-    elif frac%2 == 0 and frac%10 != 0:
+    elif (frac%2 == 0) and (frac%10 != 0):
         h = eval(str(frac)[-1])
-        if pbar[-h/2:] == '.'*(h/2):
+
+        if pbar[int(-h/2):] == '.'*int(h/2):
             return pbar
         else:
             l = '.'
-            sys.stdout.write(l)
-            sys.stdout.flush()
+            print( l, end='', sep='', file=sys.stdout, flush=True )
+            # sys.stdout.write(l)
+            # sys.stdout.flush()
             return pbar+l
     else:
         return pbar
