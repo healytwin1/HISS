@@ -929,8 +929,7 @@ class anaData(object):
 			integrated_snr = (np.sum(flux[si:se]*(abs(axis[0]-axis[1]))))/( noise * abs(axis[0]-axis[1]) * np.sqrt(cat.mask) )
 			w50loc = [np.argmin(abs(flux[si:cen] - 0.5*peak)), np.argmin(abs(flux[cen:se] - 0.5*peak))]
 			w50 = abs(axis[int(w50loc[0]+si)]) + abs(axis[int(w50loc[1]+cen)])
-			alfalfa_snr = abs(( (peak/w50) * (w50*2*cat.restdv.to('km/s').value)**0.5 )/noise)
-	
+			alfalfa_snr = abs(( (np.sum(flux[si:se]*(abs(axis[0]-axis[1])))/w50) * (w50/(2*cat.restdv.to('km/s').value))**0.5 )/noise)
 		return standard_snr, alfalfa_snr, integrated_snr	
 
 
