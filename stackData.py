@@ -284,24 +284,24 @@ class objSpec():
 			return
 			
 
-	def __calcMassConversion(self, catalogue, spec, refspec):
-		if self.status == 'incomplete':
-			logger.error('Error on conversion to mass spectrum for spectrum %s'%str(self.objid))
+	def calcMassConversion(self, catalogue, spec, refspec, redshift, randredshift, dl, dv):
+		# if self.status == 'incomplete':
+		# 	logger.error('Error on conversion to mass spectrum for spectrum %s'%str(self.objid))
+		# 	return
+		# else:
+		try:
+			massspec = (2.356E+05 * spec * dl**2 * dv/(1.+redshift)).to(astun.solMass, msun)
+			refmassspec = (2.356E+05 * refspec * dl**2 * dv/(1.+randredshift)).to(astun.solMass, msun)
+		except:
+			self.status = 'incomplete'
+			logger.error('Encountered an exception:', exc_info=True)
 			return
-		else:
-			try:
-				massspec = (2.356E+05 * spec * self.dl**2 * self.dvkms/(1.+self.redshift)).to(astun.solMass, msun)
-				refmassspec = (2.356E+05 * refspec * self.dl**2 * self.dvkms/(1.+self.randredshift)).to(astun.solMass, msun)
-			except:
-				self.status = 'incomplete'
-				logger.error('Encountered an exception:', exc_info=True)
-				return
 
-			if catalogue.stackunit == uf.msun:
-				return massspec, refmassspec
-			elif catalogue.stackunit == uf.gasfrac:
-				massspec, refmassspec = (massspec/self.stellarmass)*uf.gasfrac, (refmassspec/self.stellarmass)*uf.gasfrac
-				return massspec, refmassspec
+		if (catalogue.stackunit == uf.msun) or (catalogue.cluster == True):
+			return massspec, refmassspec
+		elif catalogue.stackunit == uf.gasfrac:
+			massspec, refmassspec = (massspec/self.stellarmass)*uf.gasfrac, (refmassspec/self.stellarmass)*uf.gasfrac
+			return massspec, refmassspec
 
 
 	def __calcExtendSpectrum(self, cat, spec, rspec, nspec):
@@ -356,7 +356,7 @@ class objSpec():
 				self.__calcShift(cat)
 				self.dl = cat.cosmology.luminosity_distance(self.redshift)
 				if uf.msun == cat.stackunit:
-					self.massspec, self.refmassspec = self.__calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec)
+					self.massspec, self.refmassspec = self.calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec, self.redshift, self.randredshift, self.dl, self.dvkms)
 					self.rms, self.noisespec, self.noisespecmass = self.__calcNoiseRMS(self.shiftorigspec, cat, self.massspec)
 					self.extendspec, self.extendrefspec = self.__calcExtendSpectrum(cat, self.massspec, self.refmassspec, self.noisespecmass)
 					self.__calcWeights(cat)
@@ -365,7 +365,7 @@ class objSpec():
 					self.extendspec, self.extendrefspec = self.__calcExtendSpectrum(cat, self.shiftorigspec, self.shiftrefspec, self.noisespec)
 					self.__calcWeights(cat)
 				elif uf.gasfrac == cat.stackunit:
-					self.massspec, self.refmassspec = self.__calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec)
+					self.massspec, self.refmassspec = self.calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec, self.redshift, self.randredshift, self.dl, self.dvkms)
 					self.rms, self.noisespec, self.noisespecmass = self.__calcNoiseRMS(self.shiftorigspec, cat, self.massspec)
 					self.extendspec, self.extendrefspec = self.__calcExtendSpectrum(cat, self.massspec, self.refmassspec, self.noisespecmass)
 					self.__calcWeights(cat)

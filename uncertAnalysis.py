@@ -120,13 +120,21 @@ class uncertAnalysis(anaData):
 				newspec[:,i] = (self.allspec[:,i] - self.finalspec)**2
 				newnois[:,i] = (self.allnoise[:,i] - self.stackrms)**2
 
-			self.uppererror = np.sqrt( (R-1)/R * np.sum(newspec, axis=1 ) )
-			self.lowererror = np.sqrt( (R-1)/R * np.sum(newspec, axis=1 ) )
-			self.specuncert = np.sqrt( (R-1)/R * np.sum(newspec, axis=1 ) )
+			# self.uppererror = np.sqrt( (R-1)/R * np.sum(newspec, axis=1 ) )
+			# self.lowererror = np.sqrt( (R-1)/R * np.sum(newspec, axis=1 ) )
+			# self.specuncert = np.sqrt( (R-1)/R * np.sum(newspec, axis=1 ) )
 
-			self.noiseerrupp = np.sqrt( (R-1)/R * np.sum(newnois, axis=1 ) )
-			self.noiseerrlow = np.sqrt( (R-1)/R * np.sum(newnois, axis=1 ) )
-			self.noiseuncert = np.sqrt( (R-1)/R * np.sum(newnois, axis=1 ) )
+			# self.noiseerrupp = np.sqrt( (R-1)/R * np.sum(newnois, axis=1 ) )
+			# self.noiseerrlow = np.sqrt( (R-1)/R * np.sum(newnois, axis=1 ) )
+			# self.noiseuncert = np.sqrt( (R-1)/R * np.sum(newnois, axis=1 ) )
+
+			self.uppererror = np.absolute(np.percentile(self.allspec, 75, axis=1) - self.finalspec)
+			self.lowererror = np.absolute(np.percentile(self.allspec, 25, axis=1) - self.finalspec)
+			self.specuncert = np.mean(np.array([self.uppererror, self.lowererror]), axis=0)
+			
+			self.noiseerrupp = np.absolute(np.percentile(self.allnoise, 75, axis=1) - self.stackrms)
+			self.noiseerrlow = np.absolute(np.percentile(self.allnoise, 25, axis=1) - self.stackrms)
+			self.noiseuncert = np.mean(np.array([self.noiseerrupp, self.noiseerrlow]), axis=0)
 
 		return
 

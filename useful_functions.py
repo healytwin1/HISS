@@ -68,9 +68,13 @@ def checkkeys(config, key):
 
 def convertable(table):
     colnames = table.colnames
+    if 'Uncertainty Integrated Flux' in colnames:
+        colnames[2] = 'Unc. Int. Flux Dens.'
+        table.rename_column('Uncertainty Integrated Flux', 'Unc. Int. Flux Dens.')
+    else: pass
     for i in range(1, len(colnames)):
         firstentry = table[colnames[i]][0]
-        if (type(firstentry) == np.str):
+        if (type(firstentry) == np.str_):
             continue
         else:
             column = (table[colnames[i]].data).astype(float)
@@ -90,8 +94,11 @@ def convertable(table):
         else:
             for j in range(len(table)):
                 table[colnames[i]][j] = round(table[colnames[i]][j], 2)
-        
     newtab = asttab.Table(names=colnames, data=table.as_array())
+    if 'Fit ChiSquare' in colnames:
+        newtab.rename_column('Fit ChiSquare', '$\chi^2$')
+    else: pass
+
     return newtab
 
 

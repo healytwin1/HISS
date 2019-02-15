@@ -4,10 +4,6 @@ h = sys.version_info
 if (sys.version_info < (2, 7)):
 	print('Warning: Some functions may not work.')
 	
-	# print ' The package has been tested on Python 2.7, and may not work with your current version (%i.%i.%i). '%(h.major, h.minor, h.micro)
-	# elif (sys.version_info > (3, 0)):
-	# print ' The package has been tested on Python 2.7, and will not work with your current version (%i.%i.%i). '%(h.major, h.minor, h.micro)
-	# sys.exit()
 else:
 	pass
 
@@ -107,6 +103,10 @@ import platform
 import gc
 import _pickle as pck
 from functools import partial
+import logging
+
+logging.disable(logging.DEBUG)
+
 # os.system("taskset -p 0xff %d" % os.getpid())
 
 warnings.filterwarnings('ignore')
@@ -121,9 +121,8 @@ c = astcon.c.to('km/s').value
 
 if config is not None:
 	configfile = args.config[0]
-	with open(configfile) as data_file:
-		data = json.load(data_file)
-		config = True
+	data = json.load(open(configfile))
+	config = True
 else:
 	data = None
 

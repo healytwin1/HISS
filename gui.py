@@ -1111,7 +1111,7 @@ class hiss(tk.Frame):
                 
         outfile =  open(self.OutputLocation+'inputinfo.json', 'w')
         configfile = json.dumps(config,
-              indent=4, sort_keys=True,
+              indent=4, sort_keys=False,
               separators=(',', ': '))
         print(configfile, file=outfile)
         outfile.close()

@@ -96,11 +96,26 @@ class binnedCatalogue(inputCatalogue):
 		self.avemass = other.avemass
 		self.avesm = other.avesm
 		self.medianz = other.medianz
+		self.cluster = other.cluster
+		self.config = other.config
 		
 
 
 
 	def determineBins(self, config):
+
+		if self.config == True:
+			self.fullfuncnum = config['FittedFunctionNumbers']
+			self.fulloptnum = config['AnalysisOptions']
+			self.fullsmoothtype = config['SmoothType']
+			self.fullsmoothwin = config['SmoothWindow']
+			self.fullmaxgalw = config['IntegrateGalaxyWidth']
+			self.fullrebinstatus = config['SmoothStatus']
+		else:
+			pass
+
+
+
 		if uf.checkkeys(config, 'BinInfo') and uf.checkkeys(config, 'Bins'):
 			colname, binwidth, binstart, binend = config["BinInfo"]
 			self.bins = config['Bins']			
@@ -155,6 +170,16 @@ class binnedCatalogue(inputCatalogue):
 
 
 	def createCatalogue(self, binindices, table, n, counter):
+
+		if (counter == 0) and (self.config == True):
+			self.funcnum = self.fullfuncnum[n]
+			self.optnum = self.fulloptnum[n]
+			self.smoothtype = self.fullsmoothtype[n]
+			self.smoothwin = self.fullsmoothwin[n]
+			self.maxgalw = self.fullmaxgalw[n]*astun.km/astun.s
+			self.rebinstatus = self.fullrebinstatus[n]
+		else: pass
+
 		self.catalogue = None
 		self.numcatspec = None
 		self.runtime = None
@@ -163,7 +188,6 @@ class binnedCatalogue(inputCatalogue):
 		self.runtime = self.origruntime + '_bin%i'%table['Bin Number'][binindices[n]]
 		self.catalogue = cat
 		self.numcatspec = len(cat)
-		logger.info('Created catalogue for bin %i'%n)
 		
 		if counter > 0:
 			self.rbnum = self.fullrbnum[n]
@@ -177,25 +201,41 @@ class binnedCatalogue(inputCatalogue):
 			self.mask = self.fullmask[n]
 			self.rebinstatus = self.fullrebinstatus[n]
 			self.w50 = self.fullw50[n]
+
 		else:
-			self.maxgalw = self.origmaxgalw
-			self.mask = self.origmask
-			self.rebinstatus = self.origrebinstatus
+			if self.config == False:
+				self.maxgalw = self.origmaxgalw
+				self.mask = self.origmask
+				self.rebinstatus = self.origrebinstatus
+				self.optnum = []
+			else:
+				self.mask = self.origmask
+
+		self.maskstart = np.argmin(abs(self.spectralaxis.value - self.mean + self.maxgalw.value/2.))
+		self.maskend = np.argmin(abs(self.spectralaxis.value - self.mean - self.maxgalw.value/2.)) + 1
+		logger.info('Created catalogue for bin %i'%n)
 		return 
 	
 
 	def __add__(self, other):
-		self.fullrbnum.append(other.rbnum)
-		self.fullfuncnum.append(other.funcnum)
-		self.fulloptnum.append(other.optnum)
-		self.fullsmoothtype.append(other.smoothtype)
-		self.fullsmoothwin.append(other.smoothwin)
-		self.fullmaskstart.append(other.maskstart)
-		self.fullmaskend.append(other.maskend)
-		self.fullmask.append(other.mask)
-		self.fullmaxgalw.append(other.maxgalw.value)
-		self.fullrebinstatus.append(other.rebinstatus)
-		self.fullw50.append(other.w50)
+		if other.config == False:
+			self.fullrbnum.append(other.rbnum)
+			self.fullfuncnum.append(other.funcnum)
+			self.fulloptnum.append(other.optnum)
+			self.fullsmoothtype.append(other.smoothtype)
+			self.fullsmoothwin.append(other.smoothwin)
+			self.fullmaskstart.append(other.maskstart)
+			self.fullmaskend.append(other.maskend)
+			self.fullmask.append(other.mask)
+			self.fullmaxgalw.append(other.maxgalw.value)
+			self.fullrebinstatus.append(other.rebinstatus)
+			self.fullw50.append(other.w50)
+		else: 
+			self.fullrbnum.append(other.rbnum)
+			self.fullmaskstart.append(other.maskstart)
+			self.fullmaskend.append(other.maskend)
+			self.fullmask.append(other.mask)
+			self.fullw50.append(other.w50)
 		return self
 
 	def __radd__(self, other):

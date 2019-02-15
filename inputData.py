@@ -12,6 +12,7 @@ import useful_functions as uf
 import json
 import logging
 
+logging.disable(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 c = astcon.c.to('km/s')
@@ -84,6 +85,8 @@ class inputCatalogue(object):
 		self.avemass = 0. 
 		self.avesm = 1.
 		self.w50 = 0 * astun.km/astun.s
+		self.cluster = False
+		self.config = False
 
 
 	def updateconfig(self, config, maxgalw, rebinstatus, smoothtype, smoothwin, funcnum, optnum):
@@ -93,9 +96,8 @@ class inputCatalogue(object):
 		config['SmoothWindow'] = smoothwin
 		config['FittedFunctionNumbers'] = funcnum
 		config['AnalysisOptions'] = optnum
-		configfile = json.dumps(config) 
+		configfile = json.dumps(config, indent=4, sort_keys=False, separators=(',', ': ') )
 		optfile = open(self.outloc+'ConfigFile_'+self.runtime, 'w')
-		# print >>optfile, configfile
 		optfile.write(configfile)
 		optfile.close()
 		return
@@ -276,13 +278,14 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'SpectrumFluxUnit'):
 				choice = config['SpectrumFluxUnit']
 			else:
-				print ("\nWhat are the flux units of your spectra?\n\t1. Jansky (Jy)\n\t2. Milli Jansky (mJy)\n\t3. Micro Jansky (uJy)\n\t4. Jansky/beam (Jy/beam)\n\t5. Milli Jansky/beam (mJy/beam)\n\t6. Micro Jansky/beam (uJy/beam)")
+				print ("\nWhat are the flux denisty units of your spectra?\n\t1. Jansky (Jy)\n\t2. Milli Jansky (mJy)\n\t3. Micro Jansky (uJy)\n\t4. Jansky/beam (Jy/beam)\n\t5. Milli Jansky/beam (mJy/beam)\n\t6. Micro Jansky/beam (uJy/beam)")
 				choice = input('Please enter the number of the applicable units: ')
 			if type(choice) != int:
 				print ('Please only select one unit.')
 				self.__getFluxUnits(None)
 			elif choice in [1,2,3]:
 				self.fluxunit = options[int(choice-1)]
+				self.convfactor = 1
 			else:
 				self.fluxunit = options[int(choice-4)]
 				if uf.checkkeys(config, 'BeamSize') and uf.checkkeys(config, 'PixelSize'):
@@ -306,14 +309,19 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'StackFluxUnit'):
 				choice = config['StackFluxUnit']
 			else:
-				print ("\nWhat units do you want your final stacked profile to have?\n\t1. Jansky (Jy)\n\t2. Solar Masses (Msun)\n\t3. Gas Fraction (Msun/Msun)")
-				choice = input('Please enter the number of the applicable units: ')
-			if type(choice) != int:
+				print("\nWhat units do you want your final stacked profile to have?\n\t1. Jansky (Jy)\n\t2. Solar Masses (Msun)\n\t3. Gas Fraction (Msun/Msun)\n\t4. Solar Masses (Msun), stack in Jy [recommend for clusters]")
+				choice = eval(input('Please enter the number of the applicable units: '))
+				print(type(choice))
+			if (type(choice) != int) :
 				print ('Please only select one unit.')
 				self.__getStackUnits(None)
 			else:
-				options = [astun.Jy, uf.msun, uf.gasfrac]
+				options = [astun.Jy, uf.msun, uf.gasfrac, astun.Jy]
 				self.stackunit = options[int(choice-1)]
+				if choice == 4:
+					self.cluster = True
+				else:
+					pass
 		except KeyboardInterrupt:
 			raise uf.exit(self)
 		except SystemExit:
@@ -566,6 +574,42 @@ class inputCatalogue(object):
 		return
 
 
+	def __checkConfig(self, config):
+		if uf.checkkeys(config, 'IntegrateGalaxyWidth'):
+			intwid = True
+			self.maxgalw = config['IntegrateGalaxyWidth']*astun.km/astun.s
+		else: 
+			intwid = False
+
+		if uf.checkkeys(config, 'SmoothStatus'):
+			self.rebinstatus = config['SmoothStatus']
+			rebin = True
+		else: 
+			rebin = False
+
+		if uf.checkkeys(config, 'SmoothType'):
+			self.smoothtype = config['SmoothType']
+		else: pass
+
+		if uf.checkkeys(config, 'SmoothWindow'):
+			self.smoothwin = config['SmoothWindow']
+		else: pass
+
+		if uf.checkkeys(config, 'FittedFunctionNumbers'):
+			self.funcnum = config['FittedFunctionNumbers']
+		else: pass
+
+		if uf.checkkeys(config, 'AnalysisOptions'):
+			self.optnum = config['AnalysisOptions']
+		else: pass
+
+		if (intwid == True) and (rebin == True):
+			self.config = True
+		else:
+			self.config = False
+
+		return
+
 
 	def __callOptionalUser(self, config):
 
@@ -581,7 +625,9 @@ class inputCatalogue(object):
 		self.__getOutputLocation(config)
 		self.__getStackUnits(config)
 		self.__getUncertAn(config)
-		self.__getUncertType(config)
+		if self.uncert.lower() == 'y':
+			self.__getUncertType(config)
+		else: pass
 		logger.info("Stacked spectrum units: %s"%(self.stackunit.to_string()))
 		logger.info("Uncertainty calculation type: %s"%self.uncerttype)
 
@@ -615,6 +661,7 @@ class inputCatalogue(object):
 			self.__callCriticalUser(config)
 			self.__callOptionalUser(config)
 			self.__calcPrivate()
+			self.__checkConfig(config)
 		except (SystemExit, KeyboardInterrupt):
 			uf.exit(self)
 		except:

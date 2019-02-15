@@ -55,22 +55,21 @@ class dispData(anaData):
 		self.nobj = header['N_OBJ']
 		self.totalmass = header['TFlux']
 		spectable = dHDU[1].data
-		if cat.suppress != 'hide':
-			self.paramtable = dHDU[3]	
-			self.spectralaxis = spectable['Spectral Axis']
-			if cat.clean == 'clean':
-				self.refspec = 0.
-			else:
-				noisetable = dHDU[2].data
-				self.stackrms = noisetable['Stacked RMS Noise'][np.where(noisetable['Stacked RMS Noise'] != 0.)[0]]
-				self.averms1, self.averms2 = header['AveRMS_1'], header['AveRMS_2']
-				self.averagenoise = header['AveSig']
-				self.refspec = spectable['Reference Spectrum']
-			self.spec = spectable['Stacked Spectrum']
-			self.fittedfunctions = [col for col in self.paramtable.columns.names if 'Uncertainty' not in col]
-			if cat.uncert == 'y':
-				self.specuncert = spectable['Stacked Spectrum Uncertainty']
-				self.noiseuncert = noisetable['Stacked RMS Noise Uncertainty']
+		self.paramtable = dHDU[3]
+		self.spectralaxis = spectable['Spectral Axis']
+		if cat.clean == 'clean':
+			self.refspec = 0.
+		else:
+			noisetable = dHDU[2].data
+			self.stackrms = noisetable['Stacked RMS Noise'][np.where(noisetable['Stacked RMS Noise'] != 0.)[0]]
+			self.averms1, self.averms2 = header['AveRMS_1'], header['AveRMS_2']
+			self.averagenoise = header['AveSig']
+			self.refspec = spectable['Reference Spectrum']
+		self.spec = spectable['Stacked Spectrum']
+		self.fittedfunctions = [col for col in self.paramtable.columns.names if 'Uncertainty' not in col]
+		if cat.uncert == 'y':
+			self.specuncert = spectable['Stacked Spectrum Uncertainty']
+			self.noiseuncert = noisetable['Stacked RMS Noise Uncertainty']
 		return
 
 
@@ -83,9 +82,27 @@ class dispData(anaData):
 	def printTable(self, table):
 		formattedtable = table.pformat(show_name=True, show_unit=True)
 		return formattedtable
+	
+
+	def __getstatistics(self, spec, specuncert, spectral, cat):
+		#########################################
+		## get the stats
+		#########################################
+		if (type(specuncert) == float) or (type(specuncert) == int) or (type(specuncert) is None):
+			sigma = np.ones(len(spec))
+			noise = (np.percentile( np.array( list(spec[:cat.maskstart])+list(spec[cat.maskend:] ) ), 75) - np.percentile( np.array( list(spec[:cat.maskstart])+list(spec[cat.maskend:] ) ), 25))/(2*0.67)
+		else:
+			sigma = specuncert
+			noise = (np.percentile( np.array( list(spec[:cat.maskstart])+list(spec[cat.maskend:] ) ), 75) - np.percentile( np.array( list(spec[:cat.maskstart])+list(spec[cat.maskend:] ) ), 25))/(2*0.67)
+
+		sgauss, cat = self.fit_one_gauss(spec, spectral, cat, sigma)
+		standard_snr, alfalfa_snr, integrated_snr, cat = self.calcSignalNoise(spec, spectral, sgauss, cat, noise)
+		pval, sig = self.calcPvalue(sgauss, spec, sigma)
+		#########################################
+		return pval, sig, standard_snr, alfalfa_snr, integrated_snr, cat
 
 
-	def __printStatistics(self, uncert, cat):
+	def __printStatistics(self, uncert, cat, spec, specuncert, spectralaxis):
 		if type(self.avemass) != np.float_:
 			self.avemass = (self.avemass).value
 		else:
@@ -104,18 +121,39 @@ class dispData(anaData):
 			tl = 100
 		unit = self.massdata['Integrated Flux'].unit
 		masstable = self.printTable(self.massdata)
-		t = 'Total flux of sample = %.2g %s'%(self.totalmass, unit)
+		if (cat.stackunit == astun.Jy) and (cat.cluster == False):
+			fd = 'flux density'
+		elif (cat.stackunit == uf.msun) or (cat.cluster == True):
+			fd = 'HI mass'
+		else:
+			fd = 'gas fraction '
+		t = 'Total %s of sample = %.2g %s'%(fd, self.totalmass, unit)
 
 		am = 'Average HI mass of sample = %.2g %s'%(self.avemass, 'Msun')
 		n = 'Stacked N = %i profiles'%self.nobj
 		masstable = self.printTable(self.massdata)
-		
+
+		pval, sig, standard_snr, alfalfa_snr, integrated_snr, cat = self.__getstatistics(spec, specuncert, spectralaxis, cat)
+
+		snr = r'The peak signal-to-noise ratio: %5.2g'%standard_snr
+		if sig == 8.2:
+			ex = r'>'
+		else:
+			ex =''
+		p = 'The significance of the peak: %s%3.2g sig (p-value = %.2g)'%(ex, sig, pval)
+		sn = 'Peak signal to noise: %.1f'%standard_snr
+		asn = 'ALFALFA signal to noise: %.1f'%alfalfa_snr
+		isn = 'Integrated signal to noise: %.1f'%integrated_snr
 
 		line0 = '\n   |'+'-'*tl+'|'
 		line1 = '   |'+' '*tl+'|'
 		line2 = '   |'+' '*5+n+' '*(tl-5-len(n))+'|'
 		line3 = '   |'+' '*5+am+' '*(tl-5-len(am))+'|'
 		line4 = '   |'+' '*5+t+' '*(tl-5-len(t))+'|'
+		line41 = '   |'+' '*5+p+' '*(tl-5-len(p))+'|'
+		line42 = '   |'+' '*5+sn+' '*(tl-5-len(sn))+'|'
+		line43 = '   |'+' '*5+asn+' '*(tl-5-len(asn))+'|'
+		line44 = '   |'+' '*5+isn+' '*(tl-5-len(isn))+'|'
 		line5 = '   |'+' '*tl+'|'
 		linet = ''
 		for i in range(len(masstable)):
@@ -123,9 +161,9 @@ class dispData(anaData):
 		line6 = '   |'+' '*tl+'|'
 		line7 = '   |'+'-'*tl+'|'
 
-		displaytext = line0 + '\n' + line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n'  + line5 + '\n' + linet + line6 + '\n' + line7 + '\n' 
+		displaytext = line0 + '\n' + line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n'  + line41 + '\n'  +line42 + '\n'  +line43 + '\n'  +line44 + '\n'  + line5 + '\n' + linet + line6 + '\n' + line7 + '\n' 
 		
-		logger.info('Integrated flux results:'+displaytext)
+		logger.info('Final results:'+displaytext)
 		if cat.suppress == 'hide':
 			print (displaytext)
 		else:
@@ -133,7 +171,9 @@ class dispData(anaData):
 		return
 
 
-	def __displayplots(self, cat, uncert,allflux=None, spec=None, spectral=None, refspec=0., specuncert=0., extra=None):
+
+
+	def __displayplots(self, cat, uncert, allflux=None, spec=None, spectral=None, refspec=0., specuncert=0., extra=None):
 		
 		plt.close('all')
 		fig = plt.figure(figsize=( 12,8.5 ))
@@ -143,7 +183,7 @@ class dispData(anaData):
 		ax3 = fig.add_subplot(gs[5:,:]) ## bottom panel, containing tabled data
 
 
-		if astun.Jy == cat.stackunit:
+		if (astun.Jy == cat.stackunit) and (cat.cluster == False):
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
 				unitstr = r'Average Stacked Flux Density ($\mathrm{mJy}$)'
@@ -154,7 +194,7 @@ class dispData(anaData):
 				conv = 1.
 				unitstr = 'Average Stacked Flux Density ($\mathrm{Jy}$)'
 			t = r'Total integrated flux of sample = %5.2g %s'%(self.totalmass, 'Jy km/s')
-		elif uf.msun == cat.stackunit:
+		elif (uf.msun == cat.stackunit) or (cat.cluster == True):
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]
@@ -206,20 +246,7 @@ class dispData(anaData):
 				ax1.plot(x, func*conv, color=self.fitcolors[fname], label=fname)
 		ax1.legend(loc='upper left',fontsize=8, numpoints=1)
 
-		#########################################
-		## get the stats
-		#########################################
-		if type(specuncert) == float or type(specuncert) == int:
-			sigma = np.ones(len(spec))
-			noise = np.std(np.array(list(spec[:cat.maskstart]) + list(spec[cat.maskend:])))
-		else:
-			sigma = specuncert
-			noise = np.std(np.array(list(spec[:cat.maskstart]) + list(spec[cat.maskend:])))
-
-		sgauss, cat = self.fit_one_gauss(spec, spectral, cat, sigma)
-		standard_snr, alfalfa_snr, integrated_snr = self.calcSignalNoise(spec, spectral, sgauss, cat, noise)
-		pval, sig = self.calcPvalue(sgauss, spec, sigma)
-		#########################################
+		pval, sig, standard_snr, alfalfa_snr, integrated_snr, cat = self.__getstatistics(spec, specuncert, spectral, cat)
 
 		snr = r'The peak signal-to-noise ratio: %5.2g'%standard_snr
 		if sig == 8.2:
@@ -243,10 +270,11 @@ class dispData(anaData):
 		else:
 			tabstrinner = '%s \n%s \n%s \n%s \n%s \n%s'%(n, am, t, snr, p, r'  ')
 			ax3.text(s=tabstrinner, x=0.5, y=0.98, horizontalalignment='center', verticalalignment='top', color='k', fontsize=12)
+			self.massdata.rename_column('Integrated Flux', 'Int. Flux Dens.')
 			massdata = uf.convertable(self.massdata)
-			ax3.table(cellText= massdata.as_array(), colLabels=massdata.colnames, loc='lower center')
 			thetable = ax3.table(cellText= massdata.as_array(), colLabels=massdata.colnames, loc='lower center', fontsize=12)
-			thetable.auto_set_column_width((-1,0,1,2,3))
+			colwidths = tuple([i for i in range(-1, len(massdata.colnames), 1)])
+			thetable.auto_set_column_width(colwidths)
 
 		ax3.xaxis.set_visible(False)
 		ax3.yaxis.set_visible(False)
@@ -289,6 +317,7 @@ class dispData(anaData):
 					grid[0].append(fig.add_subplot(gs[0,int(n/2.)]))				
 					grid[0][int(n/2.)].set_title(self.functions[options[n]], fontsize=11)
 					grid[0][int(n/2.)].set_xlabel(unitstr, fontsize=11)
+					grid[0][int(n/2.)].set_ylabel('Number of stacks', fontsize=11)
 					grid[0][int(n/2.)].hist((allflux[options[n]]*conv), bins=20)
 					grid[0][int(n/2.)].set_xlim((allflux[options[n]]*conv).min(), (allflux[options[n]]*conv).max())
 					xx = grid[0][int(n/2.)].get_xticks()
@@ -302,6 +331,7 @@ class dispData(anaData):
 						grid[1].append(fig.add_subplot(gs[1,int(n/2.)]))
 						grid[1][int(n/2.)].set_title(self.functions[options[n+1]], fontsize=11)
 						grid[1][int(n/2.)].set_xlabel(unitstr, fontsize=11)
+						grid[1][int(n/2.)].set_ylabel('Number of stacks', fontsize=11)
 						grid[1][int(n/2.)].hist((allflux[options[n+1]]*conv), bins=20)
 						grid[1][int(n/2.)].set_xlim((allflux[options[n+1]]*conv).min(), (allflux[options[n+1]]*conv).max())
 						xx = grid[1][int(n/2.)].get_xticks()
@@ -317,6 +347,7 @@ class dispData(anaData):
 					ax1 = fig.add_subplot(gs[0,-1])
 					ax1.set_title(r'Mean of Single Gaussian Fit', fontsize=11)
 					ax1.set_xlabel('km/s', fontsize=11)
+					ax1.set_ylabel('Number of stacks', fontsize=11)
 					minbin = np.floor(extra[0].min())
 					maxbin = np.ceil(extra[0].max())
 					binrange = np.arange(minbin, maxbin+0.1, 5.)
@@ -331,6 +362,7 @@ class dispData(anaData):
 					ax2 = fig.add_subplot(gs[1,-1])
 					ax2.set_title(r'RMS of Stacked Spectrum', fontsize=11)
 					ax2.set_xlabel(unitstr, fontsize=11)
+					ax2.set_ylabel('Number of stacks', fontsize=11)
 					ax2.hist(extra[1]*conv, bins=20, color='limegreen')
 					ax2.set_xlim((extra[1]*conv).min(), (extra[1]*conv).max())
 					xx = ax2.get_xticks()
@@ -367,7 +399,7 @@ class dispData(anaData):
 			uf.earlyexit(cat)
 		
 		try:
-			self.__printStatistics(uncert, cat)
+			self.__printStatistics(uncert, cat, self.spec, self.specuncert, self.spectralaxis)
 		except (SystemExit, KeyboardInterrupt):
 			uf.exit(cat)
 		except:
@@ -379,7 +411,7 @@ class dispData(anaData):
 			return
 		else:
 			try:
-				self.__displayplots(cat, uncert, allflux=allflux, spec=self.spec, spectral=self.spectralaxis, refspec=self.refspec,specuncert=self.specuncert, extra=extra)
+				self.__displayplots(cat, uncert, allflux=allflux, spec=self.spec, spectral=self.spectralaxis, refspec=self.refspec, specuncert=self.specuncert, extra=extra)
 			except (SystemExit, KeyboardInterrupt):
 				uf.exit(cat)
 			except:
