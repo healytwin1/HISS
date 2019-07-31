@@ -137,29 +137,13 @@ class objSpec():
 			try:
 				data = astasc.read(cat.specloc+cat.catalogue['Filename'][n], data_start=cat.rowstart)
 				checkZ, cat = self.__getSpectrumZOK(cat, n, runno)
-				checkDV, cat = self.__getSpectrumDVOK(data[data.colnames[cat.speccol[0]]], cat, n)
-				checklen, cat = self.__getSpectrumlenOK(data[data.colnames[cat.speccol[1]]], cat, n)
+				checkDV, cat = self.__getSpectrumDVOK((data[data.colnames[cat.speccol[0]]]).astype(np.float_), cat, n)
+				checklen, cat = self.__getSpectrumlenOK((data[data.colnames[cat.speccol[1]]]).astype(np.float_), cat, n)
 				if cat.stackunit == uf.gasfrac:
 					checkSM, cat = self.__getStellarMass(cat, n)
 				else:
 					checkSM = True
 				if checkDV and checkZ and checklen and checkSM:
-					################################
-					# for testing puposes only
-					#------------------------------------------------------#
-					# random gaussian noise
-					#------------------------------------------------------#
-					# s = 0.6*np.max(data[1])#abs(np.random.normal(0,scale=np.max(data[1]), size=1))
-					# data[1] += np.random.normal(0, s, size=len(data[1]))
-					#------------------------------------------------------#
-					# making absorption spectra
-					#------------------------------------------------------#
-					# data[1] = data[1]*(-1)
-					#------------------------------------------------------#
-					# coarsening resolution
-					#------------------------------------------------------#
-					# self.origspec = self.__smoothData(data[1])*cat.fluxunit/cat.convfactor
-					################################
 					spec = data[data.colnames[cat.speccol[1]]] * cat.fluxunit / cat.convfactor
 					spec[np.isnan(spec)] = 0.
 					self.origspec = spec.to(astun.Jy)
@@ -176,7 +160,6 @@ class objSpec():
 				uf.earlyexit(self)
 				raise KeyboardInterrupt
 			except Exception as e:
-				print(cat.specloc+cat.catalogue['Filename'][n])
 				logger.error('Encountered an exception:', exc_info=True)
 				self.status = 'incomplete'
 			return cat

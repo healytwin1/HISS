@@ -311,7 +311,6 @@ class inputCatalogue(object):
 			else:
 				print("\nWhat units do you want your final stacked profile to have?\n\t1. Jansky (Jy)\n\t2. Solar Masses (Msun)\n\t3. Gas Fraction (Msun/Msun)\n\t4. Solar Masses (Msun), stack in Jy [recommend for clusters]")
 				choice = eval(input('Please enter the number of the applicable units: '))
-				print(type(choice))
 			if (type(choice) != int) :
 				print ('Please only select one unit.')
 				self.__getStackUnits(None)

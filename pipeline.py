@@ -76,7 +76,7 @@ for m in range(5):
 if status == False:
 	sys.exit()
 else:
-	m = 0
+	pass
 
 
 import inputData as ID
@@ -129,13 +129,13 @@ else:
 
 def axisunit(cat):
 	if astun.Jy == cat.stackunit:
-		labstr2 = 'Flux per galaxy (mJy)'
-		labstr3 = 'Total Flux ('+cat.stackunit.to_string('latex')+')'
+		labstr2 = 'Flux density per\ngalaxy (mJy)'
+		labstr3 = 'Total Stacked Flux density ('+cat.stackunit.to_string('latex')+')'
 	elif uf.msun == cat.stackunit:
-		labstr2 = 'Flux per galaxy ($\mathrm{M}_\odot$)'
-		labstr3 = 'Total Stacked Flux ($10^8 \mathrm{M}_\odot$)'
+		labstr2 = 'Flux density per\ngalaxy ($\mathrm{M_\odot/chan}$)'
+		labstr3 = 'Total Stacked Flux density ($10^8 \mathrm{M_\odot/chan}$)'
 	else:
-		labstr2 = r'Gas Fraction per galaxy (M$_{\mathrm{HI}}$/M$_\star$)'
+		labstr2 = r'Gas Fraction per\ngalaxy (M$_{\mathrm{HI}}$/M$_\star$)'
 		labstr3 = r'Total Stacked Gas Fraction (M$_{\mathrm{HI}}$/M$_\star$)'
 
 	return labstr2, labstr3
@@ -143,14 +143,14 @@ def axisunit(cat):
 
 def startfigure(cat):
 	if cat.progress == 'progress' or cat.saveprogress == 'save':
-		fig = plt.figure(figsize=(19,9))
+		fig = plt.figure(figsize=(11.7,8))
 		gs = gr.GridSpec(3,4)
 		ax1 = fig.add_subplot(gs[0,0:2])
 		ax2 = fig.add_subplot(gs[1,0:2])
 		ax3 = fig.add_subplot(gs[:,2:])
 		ax4 = fig.add_subplot(gs[2,0:2])
 		plt.subplots_adjust(left=0.09,right=0.97,top=0.97,bottom=0.09, wspace=0.5, hspace=0.3)
-
+		# plt.suptitle("Progress Window", y=1.01)
 		labstr2, labstr3 = axisunit(cat)
 
 		ax2.set_ylabel(labstr2)
@@ -158,14 +158,14 @@ def startfigure(cat):
 		ax3.set_xlim(cat.spectralaxis.value[0],cat.spectralaxis.value[-1])
 		ax2.set_xlim(cat.spectralaxis.value[0],cat.spectralaxis.value[-1])
 		xx = ax2.get_xticks()
-		lab = ["%7.1f" % a for a in xx]
+		lab = ["%i" % a for a in xx]
 		ax2.set_xticks(xx)
 		ax2.axhline(0, color='gray', ls='--')
 		ax2.set_xticklabels(lab)
 		ax3.set_xticks(xx)
 		ax3.set_xticklabels(lab)
 		ax3.set_xlim(cat.spectralaxis.value[0],cat.spectralaxis.value[-1])
-		ax1.set_ylabel('Flux per galaxy (mJy)')
+		ax1.set_ylabel('Flux density per \ngalaxy (mJy)')
 		ax1.axhline(0, color='gray', ls='--')
 		
 		ax2.set_xlabel('Relative Velocity (km/s)')
@@ -184,7 +184,7 @@ def startfigure(cat):
 			xe = (cat.max_redshift)*c
 			ax1.set_xlim(xs,xe)
 			yy = ax1.get_xticks()
-			lab = ["%7.1f" % a for a in yy]
+			lab = ["%i" % a for a in yy]
 			ax1.set_xticks(yy)
 			ax1.set_xticklabels(lab)
 			ax1.set_xlim(xs,xe)
@@ -209,18 +209,18 @@ def plotprogress(cat, stackobj, col, stackspectrum, spectrum, fig, ax1, ax2, ax3
 			yvals = yvals.value/1E8
 			svals = svals/1E8
 
+		
 		ax3.cla()
 		txt = ax3.annotate('N = %i'%(stackspectrum.nobj),xy=(0.5,0.97), xycoords='axes fraction', horizontalalignment='center', fontsize=12, color='k')
 
 		ax3.set_ylim(1.05*np.min(yvals),1.08*np.max(yvals))
-
 		labstr2, labstr3 = axisunit(cat)
 
 		stackednoise = np.array(stackspectrum.stackrms)*1E6
 		objects = range(1,len(stackednoise)+1)
 		ax4.cla()
 		ax4.set_xlabel('Number of stacked spectra')
-		ax4.set_ylabel('Stacked Noise Flux ($\mu$Jy)')
+		ax4.set_ylabel('Stacked Noise ($\mu$Jy)')
 		ax4.set_xscale('log')
 		ax4.set_yscale('log')
 		ax4.plot(objects, stackednoise, 'ko')
@@ -235,25 +235,25 @@ def plotprogress(cat, stackobj, col, stackspectrum, spectrum, fig, ax1, ax2, ax3
 			spec = spectrum.extendspec.value
 		ax2.set_xlim(cat.spectralaxis.value[0],cat.spectralaxis.value[-1])
 		xx = ax2.get_xticks()
-		lab = ["%7.1f" % a for a in xx]
+		lab = ["%i" % a for a in xx]
 		ax2.set_xticks(xx)
 		ax2.axhline(0, color='gray', ls='--')
 		ax2.set_xticklabels(lab)
-		ax2.set_xlim(cat.spectralaxis.value[0],cat.spectralaxis.value[-1])
 		ax2.axvspan(xmin=-cat.maxgalw.value/2., xmax=cat.maxgalw.value/2., color='lavender')
 		ax2.plot(cat.spectralaxis.value, spec, color=col)
 		ax2.set_xlabel('Relative Velocity ('+cat.spectralunit.to_string()+')')
 		labstr2, labstr3 = axisunit(cat)
 		ax2.set_ylabel(labstr2)
+		ax2.set_xlim(cat.spectralaxis.value[0],cat.spectralaxis.value[-1])
 
 		ax3.axvspan(xmin=-cat.maxgalw.value/2., xmax=cat.maxgalw.value/2., color='lavender')
 		ax3.plot(xvals, yvals, color='k', label='Total Stacked Spectrum')
-		ax3.plot(xvals, svals, color=col, label='Spectrum ID: %i'%cat.catalogue['Object ID'][n])
+		ax3.plot(xvals, svals, color=col, label='Spectrum ID: %s'%str(cat.catalogue['Object ID'][n]))
 		ax3.axhline(0, color='gray',ls='--')
 		ax3.set_xlabel('Relative Velocity ('+cat.spectralunit.to_string()+')')
 		ax3.set_ylabel(labstr3)
-		ax3.set_xlim(-1.5*cat.maxgalw.value,1.5*cat.maxgalw.value)
-		ax3.legend(loc='upper left', fontsize=10, numpoints=1)
+		ax3.set_xlim(xvals[0],xvals[-1])
+		ax3.legend(loc='lower left', fontsize=10, numpoints=1)
 
 		fig.canvas.draw()
 		return fig
@@ -271,13 +271,11 @@ def stackeverything(pbar,cat, stackobj, binstatus, callno, binno, mccount, fig, 
 		spectrum = SD.objSpec()
 		col = colours[n]
 		cat = spectrum.callModule(cat, n, mccount, axes=[ax1,ax2], fig=fig)
-
 		if spectrum.origspec is None:
 			continue
 		else:
 			stackspectrum = stackspectrum + spectrum
 			fig = plotprogress(cat, stackobj, col, stackspectrum, spectrum, fig, ax1, ax2, ax3, ax4, n)
-
 			if mccount == 0:
 				frac = int((n+1.)/stackobj * 100.)
 				if frac < 2:
@@ -289,9 +287,9 @@ def stackeverything(pbar,cat, stackobj, binstatus, callno, binno, mccount, fig, 
 					outloc = cat.outloc+'progressplots/'
 					uf.checkpath(outloc)
 					if binstatus == 'bin':
-						plt.savefig(outloc+'bin%i_window_%i_source_%i.png'%(binno, n, cat.catalogue['Object ID'][n]), bbox_inches='tight', pad_inches=0.2)
+						plt.savefig(outloc+'bin%i_window_%i_source_%s.png'%(binno, n, str(cat.catalogue['Object ID'][n])), bbox_inches='tight', pad_inches=0.2)
 					else:
-						plt.savefig(outloc+'window_%i_source_%i.png'%(n, cat.catalogue['Object ID'][n]), bbox_inches='tight', pad_inches=0.2)
+						plt.savefig(outloc+'window_%i_source_%s.png'%(n, str(cat.catalogue['Object ID'][n])), bbox_inches='tight', pad_inches=0.2)
 				else:
 					h = 0
 			else:

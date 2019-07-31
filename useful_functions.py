@@ -69,8 +69,8 @@ def checkkeys(config, key):
 def convertable(table):
     colnames = table.colnames
     if 'Uncertainty Integrated Flux' in colnames:
-        colnames[2] = 'Unc. Int. Flux Dens.'
-        table.rename_column('Uncertainty Integrated Flux', 'Unc. Int. Flux Dens.')
+        colnames[2] = 'Unc. Int. Flux'
+        table.rename_column('Uncertainty Integrated Flux', 'Unc. Int. Flux')
     else: pass
     for i in range(1, len(colnames)):
         firstentry = table[colnames[i]][0]

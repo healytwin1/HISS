@@ -185,7 +185,7 @@ class hiss(tk.Frame):
         #### Input spectra info
         self.spectraframe = tk.Frame(master=self.mastercanvas, bd=2, relief=tk.GROOVE, width=950)
         tk.Label(self.spectraframe, text='Input Spectra:', anchor=tk.W, font=(None, 14, "bold underline")).grid(sticky="W", in_=self.spectraframe, row=1, column=1, columnspan=2)
-        self.spectrumfluxunitlabel = tk.Label(self.spectraframe, text='Please select the spectrum flux units:', anchor="w")
+        self.spectrumfluxunitlabel = tk.Label(self.spectraframe, text='Please select the spectrum flux density units:', anchor="w")
         self.spectrumfluxunitlabel.grid(sticky="W", in_=self.spectraframe, row=2, column=1, columnspan=6)
         tk.Radiobutton(self.spectraframe, text='Jy', variable=self.SpectrumFluxUnitVar, value=1, command=self.__getSpectrumFluxUnit).grid(sticky="W", in_=self.spectraframe, row=3, column=1)
         tk.Radiobutton(self.spectraframe, text='mJy', variable=self.SpectrumFluxUnitVar, value=2, command=self.__getSpectrumFluxUnit).grid(sticky="W", in_=self.spectraframe, row=3, column=2)
@@ -794,6 +794,10 @@ class hiss(tk.Frame):
             self.binendlabel.grid_forget()
             self.binsizelabel.grid_forget()
             self.displaybinlabel.grid_forget()
+            self.binstartentry.grid_forget()
+            self.binendentry.grid_forget()
+            self.binsizeentry.grid_forget()
+            self.bindisplay.grid_forget()
         return
     
     def __getUncertainty(self):

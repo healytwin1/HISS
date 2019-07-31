@@ -122,7 +122,7 @@ class dispData(anaData):
 		unit = self.massdata['Integrated Flux'].unit
 		masstable = self.printTable(self.massdata)
 		if (cat.stackunit == astun.Jy) and (cat.cluster == False):
-			fd = 'flux density'
+			fd = 'integrated flux'
 		elif (cat.stackunit == uf.msun) or (cat.cluster == True):
 			fd = 'HI mass'
 		else:
@@ -270,7 +270,7 @@ class dispData(anaData):
 		else:
 			tabstrinner = '%s \n%s \n%s \n%s \n%s \n%s'%(n, am, t, snr, p, r'  ')
 			ax3.text(s=tabstrinner, x=0.5, y=0.98, horizontalalignment='center', verticalalignment='top', color='k', fontsize=12)
-			self.massdata.rename_column('Integrated Flux', 'Int. Flux Dens.')
+			self.massdata.rename_column('Integrated Flux', 'Int. Flux')
 			massdata = uf.convertable(self.massdata)
 			thetable = ax3.table(cellText= massdata.as_array(), colLabels=massdata.colnames, loc='lower center', fontsize=12)
 			colwidths = tuple([i for i in range(-1, len(massdata.colnames), 1)])

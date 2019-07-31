@@ -20,6 +20,7 @@ class binnedCatalogue(inputCatalogue):
 
 	def __init__(self, other):
 		self.binnedtable = None
+		self.smoothalgorithms = other.smoothalgorithms
 		self.binpartindicies = None
 		self.fullcatalogue = other.catalogue
 		self.catalogue = None
