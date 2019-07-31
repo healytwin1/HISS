@@ -11,7 +11,7 @@ If any of the above packages are missing, you can use:
 
 	`sudo pip install <package name>`
 
-Note: this package has been developed and tested on a computer running MacOS Yosemite and above using Python 2.7.9.
+Note: this package has been developed and tested on a computer running MacOS Yosemite and above using Python 2.7.9 as well as Python 3.6.
 
 FIRST TIME USERS:
 	It is recommended that you use the graphical interface to populate a config file. The graphical interface is called by the "hiss" executable.
