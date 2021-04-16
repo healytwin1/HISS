@@ -121,9 +121,9 @@ class dispData(anaData):
 			tl = 100
 		unit = self.massdata['Integrated Flux'].unit
 		masstable = self.printTable(self.massdata)
-		if (cat.stackunit == astun.Jy) and (cat.cluster == False):
+		if (cat.stackunit == astun.Jy) :
 			fd = 'integrated flux'
-		elif (cat.stackunit == uf.msun) or (cat.cluster == True):
+		elif (cat.stackunit == uf.msun) :
 			fd = 'HI mass'
 		else:
 			fd = 'gas fraction '
@@ -183,7 +183,7 @@ class dispData(anaData):
 		ax3 = fig.add_subplot(gs[5:,:]) ## bottom panel, containing tabled data
 
 
-		if (astun.Jy == cat.stackunit) and (cat.cluster == False):
+		if (astun.Jy == cat.stackunit):
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
 				unitstr = r'Average Stacked Flux Density ($\mathrm{mJy}$)'
@@ -194,7 +194,7 @@ class dispData(anaData):
 				conv = 1.
 				unitstr = 'Average Stacked Flux Density ($\mathrm{Jy}$)'
 			t = r'Total integrated flux of sample = %5.2g %s'%(self.totalmass, 'Jy km/s')
-		elif (uf.msun == cat.stackunit) or (cat.cluster == True):
+		elif (uf.msun == cat.stackunit) :
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]

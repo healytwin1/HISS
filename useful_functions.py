@@ -116,13 +116,12 @@ def exit(cat):
     outloc = bashfriendlypath(cat.outloc)
     if os.path.exists('%sstackertemp/'%cat.outloc):
         os.system('rm -r %sstackertemp/'%outloc)
-    else:
-        h = 0
+    else: pass
+
     if os.path.exists('hiss_%s.log'%(cat.runtime)):
         logger.info('Stacker has exited')
         os.system('mv hiss_%s.log %shiss_%s.log'%(cat.runtime, outloc, cat.runtime))
-    else:
-        h = 0
+    else: pass
     sys.exit()
     return
 
@@ -314,8 +313,8 @@ def strlinelog(x, m, c):
 
 ## Functions needed for fitting Gaussian - using the astropy frame work for creating douple and single gaussians
 
-SingleGaussian = astmod.models.Gaussian1D
-DoubleGaussian = (astmod.models.Gaussian1D + astmod.models.Gaussian1D).rename('DoubleGaussian')
+# SingleGaussian = astmod.models.Gaussian1D
+# DoubleGaussian = astmod.models.Gaussian1D + astmod.models.Gaussian1D
 
 # @astmod.models.custom_model
 def singleGaussian(x, amp=1, cen=0, sig=1):

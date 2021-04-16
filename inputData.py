@@ -69,7 +69,7 @@ class inputCatalogue(object):
 		self.smoothtype = None
 		self.smoothwin = None
 		self.functions = ['Single Gaussian', 'Double Gaussian', 'Lorentzian Distribution Function', 'Voigt Profile', '3rd Order Gauss-Hermite Polynomial', 'Busy Function (with double horn)', 'Busy Function (without double horn)','Summed Flux of Stacked Spectrum']
-		self.outcatalogue = asttab.Table(names=['Bin Number', 'Object ID', 'Filename', 'Redshift', 'Redshift Uncertainty', 'Stellar Mass', 'Other Data', 'Integrated Flux'], dtype=('i8','S30','S30','f8','f8','f8','f8','f8'), masked=True)
+		self.outcatalogue = asttab.Table(names=['Bin Number', 'Object ID', 'Filename', 'Redshift', 'Redshift Uncertainty', 'Stellar Mass', 'Other Data', 'Integrated Flux', 'StackWeight'], dtype=('i8','S30','S30','f8','f8','f8','f8','f8', 'f8'), masked=True)
 		self.maskstart = None
 		self.maskend = None
 		self.mean = 0.
@@ -86,6 +86,8 @@ class inputCatalogue(object):
 		self.avesm = 1.
 		self.w50 = 0 * astun.km/astun.s
 		self.cluster = False
+		self.clusterZ = None
+		self.clusterDL = None
 		self.config = False
 
 
@@ -111,7 +113,10 @@ class inputCatalogue(object):
 				colnum = str(colnumlist[n])
 			else:
 				colnum = colnumlist[n]
-		if len(colnum) == 0:
+		if (self.weighting != '5') & (colname == 'StackWeights') :
+			newcol = asttab.MaskedColumn(name=colname, data=np.ones(len(table)), mask=[False]*len(table))
+			table.add_column(newcol)
+		elif len(colnum) == 0:
 			newcol = asttab.MaskedColumn(name=colname, data=np.zeros(len(table)), mask=[True]*len(table))
 			table.add_column(newcol)
 			return table
@@ -135,11 +140,12 @@ class inputCatalogue(object):
 			self.catfilename = config['CatalogueFilename']
 		else:
 			self.catfilename = input('Enter location and filename of catalogue file: ')
+
 		while not os.path.isfile(self.catfilename):
 			print ('The catalogue filename and location you have given does not exist.\n')
 			self.catfilename = input('Enter location and filename of catalogue file: ')
 		try:
-			filetable = astasc.read(self.catfilename) # [, format='csv'] took out 10/01/19 when line crashed with .dat on JD system
+			filetable = astasc.read(self.catfilename) 
 		except KeyboardInterrupt:
 			uf.earlyexit(self)
 			raise sys.exit()
@@ -157,7 +163,7 @@ class inputCatalogue(object):
 			for u in range(len(filetablenames)):
 				print ('%i: %s'%(u, filetablenames[u]))
 				
-		colnames = ['Object ID', 'Filename', 'Redshift', 'Redshift Uncertainty', 'Stellar Mass', 'Other Data']
+		colnames = ['Object ID', 'Filename', 'Redshift', 'Redshift Uncertainty', 'Stellar Mass', 'Other Data', 'StackWeights']
 		catalogue = asttab.Table(names=['Dud'], dtype=['f8'], masked=True, data=[np.zeros(len(filetable))])
 
 		for o in range(len(colnames)):
@@ -182,12 +188,11 @@ class inputCatalogue(object):
 		else:
 			checkval = str(int(catalogue['Stellar Mass'][0]))
 			if len(checkval) < 3:
-				catalogue['Stellar Mass'].unit = astun.dex*uf.msun
+				catalogue['Stellar Mass'].unit = uf.msundex
 			else:
-				catalogue['Stellar Mass'].unit = uf.msun
+				catalogue['Stellar Mass'].unit = astun.Msun
 
 			self.avesm = np.mean( catalogue['Stellar Mass'].data ) * catalogue['Stellar Mass'].unit
-
 
 		uniquecatalogue = asttab.unique(catalogue, keys='Object ID')
 		self.catalogue = uniquecatalogue
@@ -303,6 +308,7 @@ class inputCatalogue(object):
 			logger.error('There was an input error with your unit selection', exc_info=True)
 			uf.earlyexit(self)
 		return
+
 
 	def __getStackUnits(self, config):
 		try:
@@ -448,6 +454,39 @@ class inputCatalogue(object):
 	# 	except:
 	# 		logger.error('Rest frequency not interpreted.', exc_info=True)
 	# 		uf.earlyexit(self)
+	def __getClusterStack(self, config):
+		try:
+			vals = {'t': True, 'f': False}
+			if uf.checkkeys(config, 'ClusterStack'):
+				val = config['ClusterStack'] 
+				val = val[0].lower()
+				self.cluster = vals[val]
+			else:
+				val = input('Are you stacking a galaxy cluster [True/False]: ') 
+				val = val.lower()
+				self.cluster = vals[val]
+
+			if self.cluster == True:
+				if uf.checkkeys(config, 'ClusterRedshift'):
+					val = config['ClusterRedshift']
+					if type(val) != float:
+						val = eval(val)
+					else: pass
+					self.clusterZ = val
+				else:
+					val = eval(input('Enter the cluster redshift: '))
+					self.clusterZ = val
+				self.clusterDL = self.cosmology.luminosity_distance(self.clusterZ)
+				logger.info('Stacking galaxy cluster at z = %.4f (Dl = %.1f Mpc)'%(self.clusterZ, self.clusterDL.value))
+			else:
+				logger.info('No galaxy cluster in this sample.')
+		except KeyboardInterrupt:
+			raise uf.exit(self)
+		except SystemExit:
+			raise uf.exit(self)
+		except:
+			logger.error("Did not understand if there is a galaxy cluster in this sample.", exc_info=True)
+			uf.earlyexit(self)
 
 
 	def __getMaxGalaxyWidth(self, config):
@@ -470,11 +509,11 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'WeightOption'):
 				self.weighting = str(config['WeightOption'])
 			else:
-				print ('\nThe following are options can be used to weight each spectrum:\n\t1. w = 1. [default]\n\t2. w = 1/rms \n\t3. w = 1/rms^2 \n\t4. w = dl^2/rms^2')
-				## TODO: add in option for individual weights from catalogue as well as custom weighting function
+				print ('\nThe following are options can be used to weight each spectrum:\n\t1. w = 1. [default]\n\t2. w = 1/rms \n\t3. w = 1/rms^2 \n\t4. w = dl^2/rms^2 \n\t5. User-defined weights in catalogue.')
+				## TODO: add in custom weighting function
 				weights = input('Please enter the number of the scheme you would like to use: ')
 				self.weighting = weights[0]
-			wghts = {'1': 'w = 1', '2': 'w = 1/rms', '3': 'w = 1/rms^2', '4': 'w = dl^2/rms^2'}
+			wghts = {'1': 'w = 1', '2': 'w = 1/rms', '3': 'w = 1/rms^2', '4': 'w = dl^2/rms^2', '5': 'User weights'}
 			logger.info('Weighting factor: %s'%wghts[self.weighting])
 		except KeyboardInterrupt:
 			raise uf.exit(self)
@@ -616,6 +655,7 @@ class inputCatalogue(object):
 		self.__getMaxGalaxyWidth(config)
 		self.__getMaxLenSpectrum(config)
 		self.__getWeightingScheme(config)
+		self.__getClusterStack(config)
 		
 		return
 
@@ -657,10 +697,10 @@ class inputCatalogue(object):
 	def runInput(self, config):
 
 		try:
-			self.__callCriticalUser(config)
-			self.__callOptionalUser(config)
-			self.__calcPrivate()
 			self.__checkConfig(config)
+			self.__callOptionalUser(config)
+			self.__callCriticalUser(config)
+			self.__calcPrivate()
 		except (SystemExit, KeyboardInterrupt):
 			uf.exit(self)
 		except:

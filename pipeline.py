@@ -106,6 +106,7 @@ from functools import partial
 import logging
 
 logging.disable(logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # os.system("taskset -p 0xff %d" % os.getpid())
 
@@ -494,6 +495,7 @@ def main():
 		try:
 			bincatalogue.determineBins(data)
 		except (SystemExit, KeyboardInterrupt):
+			logger.error('Early exit', exc_info=False)
 			uf.exit(fullcat)
 		except:
 			logging.warning("Couldn't determine the catalogue for the different bins:", exc_info=True)
@@ -505,6 +507,7 @@ def main():
 			repeat = 1
 
 		counter = 0
+		# print(bincatalogue.catalogue)
 		while counter < repeat:
 			mccount = counter
 			for m in range(0,len(bincatalogue.binpartindicies)-1):
@@ -515,26 +518,31 @@ def main():
 				try:
 					bincatalogue.createCatalogue(bincatalogue.binpartindicies, bincatalogue.binnedtable, m, counter)
 				except KeyboardInterrupt:
-					uf.earlyexit(cat)
+					logger.error('Early exit', exc_info=False)
+					uf.earlyexit(fullcat)
 					raise sys.exit()
 				except SystemExit:
-					uf.earlyexit(cat)
+					logger.error('Early exit', exc_info=False)
+					uf.earlyexit(fullcat)
 					raise sys.exit()
 				except:
 					logger.error('Exception occurred trying to create the binned catalogue.', exc_info=True)
-					uf.earlyexit(cat)
+					uf.earlyexit(fullcat)
 					raise sys.exit()
 				
 				if len(bincatalogue.catalogue) < 2:
-					h = 0
+					logger.info('Bin %i has too few objects'%(m+1))
+					pass
 				else:
-
-					catalogue = pipeline(bincatalogue, config, data, 'bin', m+1, mccount)
-					if counter == 0:
-						bincatalogue = bincatalogue + catalogue
-					else:
-						h = 0
-			if counter == 0:
+					try:
+						catalogue = pipeline(bincatalogue, config, data, 'bin', m+1, mccount)
+						if counter == 0:
+							bincatalogue = bincatalogue + catalogue
+						else:
+							pass
+					except TypeError:
+						logger.error('Problem with bin %i. Skipping'%(m+1))
+			if (counter == 0):
 				bincatalogue.outcatalogue['Stellar Mass'].unit = bincatalogue.fullcatalogue['Stellar Mass'].unit
 				bincatalogue.outcatalogue['Other Data'].unit = bincatalogue.fullcatalogue['Other Data'].unit
 				bincatalogue.outcatalogue['Integrated Flux'].unit = astun.Jy*astun.km/astun.s
@@ -542,12 +550,15 @@ def main():
 				pck.dump( bincatalogue, open('%sstackertemp/catalogue_obj.pkl'%bincatalogue.outloc, 'wb') )
 
 				catalogue = uf.maskTable(bincatalogue.outcatalogue)
-				catalogue = asttab.unique(catalogue, keys='Object ID')
+				if len(catalogue) > 1:
+					catalogue = asttab.unique(catalogue, keys='Object ID')
+				else:
+					pass
 				catalogue.sort('Bin Number')
 				astasc.write(catalogue, bincatalogue.outloc+'Stacked_Catalogue_%s.csv'%bincatalogue.origruntime, format='ecsv')
 				fullcat.updateconfig(data, bincatalogue.fullmaxgalw, bincatalogue.fullrebinstatus, bincatalogue.fullsmoothtype, bincatalogue.fullsmoothwin, bincatalogue.fullfuncnum, bincatalogue.fulloptnum)
 			else:
-				h = 0
+				pass
 			saveprogress = None
 			counter += 1
 	else:
@@ -564,6 +575,7 @@ def main():
 			astasc.write(catalogue, fullcat.outloc+'Stacked_Catalogue_%s.csv'%fullcat.runtime, format='ecsv')
 			logging.info('Written Stacked Catalogue to file.')
 		except (SystemExit, KeyboardInterrupt):
+			logger.error('Early exit', exc_info=False)
 			uf.exit(fullcat)
 		except:
 			logging.warning("Struggled to save the catalogue files.", exc_info=True)
@@ -574,7 +586,7 @@ def main():
 		outloc = uf.bashfriendlypath(fullcat.outloc)
 		os.system('open '+outloc)
 	else:
-		h = 0
+		pass
 
 	print( '\nStacker has finished.\n')
 	uf.exit(fullcat)
@@ -584,7 +596,9 @@ def main():
 if __name__ == '__main__':
 	try:
 		main()
+	except SystemExit: pass
 	except:
+		logger.error('Early exit', exc_info=True)
 		raise sys.exit()
 else:
 	main()

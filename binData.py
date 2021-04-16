@@ -98,6 +98,8 @@ class binnedCatalogue(inputCatalogue):
 		self.avesm = other.avesm
 		self.medianz = other.medianz
 		self.cluster = other.cluster
+		self.clusterZ = other.clusterZ
+		self.clusterDL = other.clusterDL
 		self.config = other.config
 		
 
@@ -115,8 +117,6 @@ class binnedCatalogue(inputCatalogue):
 		else:
 			pass
 
-
-
 		if uf.checkkeys(config, 'BinInfo') and uf.checkkeys(config, 'Bins'):
 			colname, binwidth, binstart, binend = config["BinInfo"]
 			self.bins = config['Bins']			
@@ -133,12 +133,14 @@ class binnedCatalogue(inputCatalogue):
 
 	def __bintable(self, tableorig, colnam, binwidth, binrangestart, binrangeend):
 		table = tableorig
+		# print(table)
 		if self.bins is None or self.bins == 'none':
 			bins = np.arange( binrangestart, binrangeend+binwidth, binwidth )
 		else:
 			bins = self.bins
 		if colnam == 'Stellar Mass':
-			coldata = (table[colnam].data*table[colnam].unit).to(uf.msundex, uf.log10conv)
+			coldata = table[colnam]
+			# coldata = (table[colnam].data*table[colnam].unit).to(uf.msundex, uf.log10conv)
 		else:
 			coldata = table[colnam].data
 		bindata = np.digitize(coldata, bins, right=True)
@@ -167,40 +169,62 @@ class binnedCatalogue(inputCatalogue):
 				bindices = table.groups.indices[:-1]
 			else:
 				bindices = table.groups.indices
+
 		return table, bindices
 
 
 	def createCatalogue(self, binindices, table, n, counter):
-
+		
 		if (counter == 0) and (self.config == True):
-			self.funcnum = self.fullfuncnum[n]
+
 			self.optnum = self.fulloptnum[n]
-			self.smoothtype = self.fullsmoothtype[n]
-			self.smoothwin = self.fullsmoothwin[n]
 			self.maxgalw = self.fullmaxgalw[n]*astun.km/astun.s
 			self.rebinstatus = self.fullrebinstatus[n]
+
+			if len(self.fullfuncnum) == 0:
+				self.funcnum =[]
+			else:
+				if self.optnum == ["4"]:
+					pass
+				else:
+					self.funcnum = self.fullfuncnum[n]
+
+			if self.rebinstatus is True:
+				self.smoothtype = self.fullsmoothtype[n]
+				self.smoothwin = self.fullsmoothwin[n]
+			else:
+				pass
+
 		else: pass
 
 		self.catalogue = None
 		self.numcatspec = None
 		self.runtime = None
 		cat = table[binindices[n]:binindices[n+1]]
+		# print(cat)
 		self.randuz = self.fullranduz[binindices[n]:binindices[n+1]]
 		self.runtime = self.origruntime + '_bin%i'%table['Bin Number'][binindices[n]]
 		self.catalogue = cat
 		self.numcatspec = len(cat)
 		
 		if counter > 0:
+			self.rebinstatus = self.fullrebinstatus[n]
 			self.rbnum = self.fullrbnum[n]
-			self.funcnum = self.fullfuncnum[n]
 			self.optnum = self.fulloptnum[n]
-			self.smoothtype = self.fullsmoothtype[n]
-			self.smoothwin = self.fullsmoothwin[n]
+			if self.optnum == ["4"]:
+				pass
+			else:
+				self.funcnum = self.fullfuncnum[n]
+				
+			if self.rebinstatus is True:
+				self.smoothtype = self.fullsmoothtype[n]
+				self.smoothwin = self.fullsmoothwin[n]
+			else: pass
+
 			self.maskstart = self.fullmaskstart[n]
 			self.maskend = self.fullmaskend[n]
 			self.maxgalw = self.fullmaxgalw[n]*self.spectralunit
 			self.mask = self.fullmask[n]
-			self.rebinstatus = self.fullrebinstatus[n]
 			self.w50 = self.fullw50[n]
 
 		else:
@@ -214,7 +238,8 @@ class binnedCatalogue(inputCatalogue):
 
 		self.maskstart = np.argmin(abs(self.spectralaxis.value - self.mean + self.maxgalw.value/2.))
 		self.maskend = np.argmin(abs(self.spectralaxis.value - self.mean - self.maxgalw.value/2.)) + 1
-		logger.info('Created catalogue for bin %i'%n)
+		logger.info('Created catalogue for bin %i'%(n+1))
+		# print(self.catalogue)
 		return 
 	
 

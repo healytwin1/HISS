@@ -95,14 +95,9 @@ class anaData(object):
 	def __fillInitial(self, other, cat, runno):
 		if runno == 0:
 			logger.info('Initialising the analysis.')
-		else:
-			h = 0
-		if cat.cluster == True:
-			self.spec, self.refspec = other.calcMassConversion(cat, other.spec/other.weightsum, other.refspec/other.weightsum, cat.medianz, cat.medianz, cat.mediandistance, cat.restdv)
-			self.spec, self.refspec = self.spec.value, self.refspec.value
-		else:
-			self.spec = (other.spec.value/other.weightsum)
-			self.refspec = other.refspec.value/other.weightsum
+		else: pass
+		self.spec = (other.spec.value/other.weightsum)
+		self.refspec = other.refspec.value/other.weightsum
 
 
 		self.nobj = int(other.nobj)
@@ -117,7 +112,11 @@ class anaData(object):
 	def __averagenoise(self, noiselist):
 		x = (range(1, len(noiselist)+1, 1))
 		y = noiselist 
-		m, c = opt.curve_fit(uf.strlinelog, x, y)[0]
+		try:
+			m, c = opt.curve_fit(uf.strlinelog, x, y)[0]
+		except:
+			m = 0
+			c = noiselist[0]
 		return m
 
 
@@ -134,22 +133,24 @@ class anaData(object):
 				This method returns a flux array corresponding to the fitted Single Gaussian."""
 		kwargs = {'max_nfev': int(1e6)}
 		if cat.linetype == 'emission':
-			high = 2*np.nanmax(flux)
+			high = 2*np.nanmax((flux))
 			low = 0.
-			amp = np.nanmax(flux)
+			amp = np.nanmax((flux))
 		else:
 			low = 2*np.nanmin(flux)
 			amp = np.nanmin(flux)
 			high = 0.
 		p0 = [amp, cat.mean, cat.restdv.value]
+		# print(axis, flux, p0, weights, uncert)
 		popt, pcov = opt.curve_fit( uf.singleGaussian, axis, flux, p0=p0, sigma=weights, absolute_sigma=uncert, bounds=([low, cat.mean-cat.restdv.value, cat.restdv.value/2.], [high, cat.mean+cat.restdv.value, cat.maxgalw.value]), **kwargs )
-		sgauss = uf.SingleGaussian(popt[0], popt[1], popt[2])
+
+		sgauss = uf.singleGaussian(axis, popt[0], popt[1], popt[2])
 		cat.w50 = round(popt[2],0)
 		# cat.w50 = self.calcW50( sgauss(axis), axis )
 		if self.runno == 1:
 			logger.info('Approximate FWHM of Gaussian fit to stack: %.1f km/s'%cat.w50)
 		else: pass
-		return sgauss(axis), cat
+		return sgauss, cat
 
 
 	def fit_single_gaussian(self, cat, spec, axis, weights, uncert=False, param=None, process='fit'):
@@ -180,7 +181,7 @@ class anaData(object):
 				high = 0.
 			p0 = [amp, cat.mean, cat.restdv.value]
 			popt, pcov = opt.curve_fit( uf.singleGaussian, axis, spec, p0=p0, sigma=weights, absolute_sigma=uncert, bounds=([low, cat.mean-cat.restdv.value, cat.restdv.value/2.], [high, cat.mean+cat.restdv.value, cat.maxgalw.value]), check_finite=False, **kwargs )
-			sgauss = uf.SingleGaussian(popt[0], popt[1], popt[2])
+			sgauss = uf.singleGaussian(axis, popt[0], popt[1], popt[2])
 			fitparam = astfit.Column( name='Single Gaussian', format='D', array=np.array(popt) )
 			fitparamuncert = astfit.Column( name='Single Gaussian Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
 			intflux = np.sum(sgauss(axis))
@@ -188,8 +189,8 @@ class anaData(object):
 			w50 = self.calcW50( sgauss(axis), axis )
 			return fitparam, fitparamuncert, abs(intflux), fitrms, w50
 		elif process == 'plot':
-			sgauss = uf.SingleGaussian(param[0], param[1], param[2])
-			return sgauss(axis)
+			sgauss = uf.singleGaussian(axis, param[0], param[1], param[2])
+			return sgauss
 
 
 	def fit_double_gaussian(self, cat, spec, axis, weights, uncert=True, param=None, process='fit'):
@@ -216,7 +217,7 @@ class anaData(object):
 				high = 0.
 			p0 = [0.7*amp, cat.mean+cat.restdv.value, cat.restdv.value, 0.7*amp, cat.mean-cat.restdv.value, cat.restdv.value]
 			popt, pcov = opt.curve_fit( uf.doubleGaussian, axis, spec, p0=p0, sigma=weights, absolute_sigma=uncert, bounds=( [low, cat.mean-cat.maxgalw.value/10., cat.restdv.value/2., low, cat.mean-cat.maxgalw.value/5., cat.restdv.value/2. ], [high, cat.mean+cat.maxgalw.value/5., cat.maxgalw.value, high, cat.mean+cat.maxgalw.value/10., cat.maxgalw.value] ), **kwargs )
-			dgauss = uf.DoubleGaussian(popt[0], popt[1], popt[2], popt[3], popt[4], popt[5])
+			dgauss = uf.doubleGaussian(popt[0], popt[1], popt[2], popt[3], popt[4], popt[5])
 
 			fitparam = astfit.Column( name='Double Gaussian', format='D', array=popt )
 			fitparamuncert = astfit.Column( name='Double Gaussian Uncert', format='D', array=np.sqrt(np.diag(pcov)) )
@@ -505,7 +506,7 @@ class anaData(object):
 		ax1 = fig.add_subplot(gs[:4])
 		ax2 = fig.add_subplot(gs[4:])
 
-		if (astun.Jy == cat.stackunit) and (cat.cluster == False):
+		if (astun.Jy == cat.stackunit) :
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
 				unitstr = r'Average Stacked Flux Density ($\mathrm{mJy}$)'
@@ -515,7 +516,7 @@ class anaData(object):
 			else:
 				conv = 1.
 				unitstr = 'Average Stacked Flux Density ($\mathrm{Jy}$)'
-		elif (uf.msun == cat.stackunit) or (cat.cluster == True):
+		elif (uf.msun == cat.stackunit):
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]
@@ -655,7 +656,7 @@ class anaData(object):
 			noise = 0.
 		else:
 			h = 0.
-		if (cat.stackunit == astun.Jy) and (cat.cluster == False):
+		if (cat.stackunit == astun.Jy):
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
 				ystring =  r'Average Stacked Flux Density ($\mathrm{mJy}$)'
@@ -665,7 +666,7 @@ class anaData(object):
 			else:
 				conv = 1.
 				ystring =  r'Average Stacked Flux Density ($\mathrm{Jy}$)'
-		elif (cat.stackunit == uf.msun) or (cat.cluster == True):
+		elif (cat.stackunit == uf.msun):
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]
@@ -1048,7 +1049,11 @@ class anaData(object):
 			self.fitweights = np.ones(len(self.spec))*self.noiselevel
 			x = (np.arange(1,self.nobj+1,1))
 			y = (np.array(self.stackrms))
-			params, cov = opt.curve_fit(uf.strlinelog, x, y, p0=[y[0], 0.], absolute_sigma=False)
+			try:
+				params, cov = opt.curve_fit(uf.strlinelog, x, y, p0=[y[0], 0.], absolute_sigma=False)
+			except TypeError:
+				logger.error('There is a problem with fitting the noise.')
+				params = [0,0]
 			self.averms1 = params[0]
 			self.averms2 = params[1]
 		if self.runno > 0 or cat.clean == 'clean':
@@ -1090,10 +1095,10 @@ class anaData(object):
 			if uncert == False:
 				col2 = np.array([self.intflux[7]])
 				col5 = np.array([cat.w50])
-				if (cat.stackunit == astun.Jy) and (cat.cluster == False):
+				if (cat.stackunit == astun.Jy):
 					col2 = col2*cat.restdv*cat.stackunit
-				elif cat.cluster == True:
-					col2 = col2*uf.msun
+				# elif cat.cluster == True:
+				# 	col2 = col2*uf.msun
 				else:
 					col2 = col2*cat.stackunit
 				data = asttab.Table([names, col2, col5], names=['Fitted Function','Integrated Flux', 'FWHM'])
@@ -1103,12 +1108,12 @@ class anaData(object):
 				col1 = np.array([self.intflux[:,0][7]])
 				col2 = np.array([self.intflux[:,1][7]])
 				col5 = np.array([cat.w50])
-				if (cat.stackunit == astun.Jy) and (cat.cluster == False):
+				if (cat.stackunit == astun.Jy):
 					col1 = col1*cat.restdv*cat.stackunit
 					col2 = col2*cat.restdv*cat.stackunit
-				elif cat.cluster == True:
-					col1 = col1*uf.msun
-					col2 = col2*uf.msun
+				# elif cat.cluster == True:
+				# 	col1 = col1*uf.msun
+				# 	col2 = col2*uf.msun
 				else:
 					col1 = col1*cat.stackunit
 					col2 = col2*cat.stackunit
@@ -1134,7 +1139,7 @@ class anaData(object):
 				col5 = [self.fitw50[int(i)] for i in ind]
 				if uncert == False:
 					col2 = self.intflux[ind]
-					if (cat.stackunit == astun.Jy) and (cat.cluster == False):
+					if (cat.stackunit == astun.Jy):
 						col2 = col2*cat.restdv*cat.stackunit
 					elif cat.cluster == True:
 						col2 = col2*uf.msun
@@ -1146,12 +1151,12 @@ class anaData(object):
 				else:
 					col1 = self.intflux[:,0][ind]
 					col2 = self.intflux[:,1][ind]
-					if (cat.stackunit == astun.Jy) and (cat.cluster == False):
+					if (cat.stackunit == astun.Jy):
 						col1 = col1*cat.restdv*cat.stackunit
 						col2 = col2*cat.restdv*cat.stackunit
-					elif cat.cluster == True:
-						col1 = col1*uf.msun
-						col2 = col2*uf.msun
+					# elif cat.cluster == True:
+					# 	col1 = col1*uf.msun
+					# 	col2 = col2*uf.msun
 					else:
 						col1 = col1*cat.stackunit
 						col2 = col2*cat.stackunit
@@ -1229,11 +1234,11 @@ class anaData(object):
 				noise = self.stackrms
 				noiseuncert = self.noiseuncert
 
-		if cat.cluster == True:
-			stackunit = uf.msun
-		else:
-			stackunit = cat.stackunit
-			pass
+		# if cat.cluster == True:
+		# 	stackunit = uf.msun
+		# else:
+		stackunit = cat.stackunit
+		# 	pass
 
 		## Table 1: Spectrum Information
 		d1 = astfit.Column(name='Stacked Spectrum', format='D', unit=stackunit.to_string(), array=spec)
@@ -1319,7 +1324,7 @@ class anaData(object):
 
 		## stacked spectrum
 		x = np.linspace(spectral[0],spectral[-1],10000)
-		if (astun.Jy == cat.stackunit) and (cat.cluster == False):
+		if (astun.Jy == cat.stackunit):
 			if 1E-3 < max(spec) < 1E-1:
 				conv = 1E3
 				unitstr = r'Average Stacked Flux Density ($\mathrm{mJy}$)'
@@ -1329,7 +1334,7 @@ class anaData(object):
 			else:
 				conv = 1.
 				unitstr = 'Average Stacked Flux Density ($\mathrm{Jy}$)'
-		elif (uf.msun == cat.stackunit) or (cat.cluster == True):
+		elif (uf.msun == cat.stackunit):
 			masstext = '%.3E'%np.max(spec)
 			masi = masstext.split('E')[0]
 			masexp = masstext.split('E')[1]
@@ -1370,7 +1375,7 @@ class anaData(object):
 		## Histogram of integrated flux
 		if uncert == True:
 
-			if (astun.Jy == cat.stackunit) and (cat.cluster == False):
+			if (astun.Jy == cat.stackunit):
 				if 1E-3 < max(spec) < 1E-1:
 					conv = 1E3
 					unitstr = r'Ave. Stacked Integrated'+'\n'+r'Flux Density ($\mathrm{mJy}$)'
@@ -1380,7 +1385,7 @@ class anaData(object):
 				else:
 					conv = 1.
 					unitstr = r'Ave Stacked Integrated'+'\n'+r'Flux Density ($\mathrm{Jy}$)'
-			elif (uf.msun == cat.stackunit) or (cat.cluster == uf.msun):
+			elif (uf.msun == cat.stackunit):
 				masstext = '%.3E'%np.max(spec)
 				masi = masstext.split('E')[0]
 				masexp = masstext.split('E')[1]
@@ -1507,6 +1512,9 @@ class anaData(object):
 			self.tflux = self.intflux[7] * other.nobj
 			if (cat.stackunit == astun.Jy) and (cat.cluster == False):
 				cat.avemass = (2.356E+05 * ( cat.mediandistance**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.medianz)
+
+			if (cat.stackunit == astun.Jy) and (cat.cluster == True):
+				cat.avemass = (2.356E+05 * ( cat.clusterDL**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.clusterZ)
 			elif cat.stackunit == uf.gasfrac:
 				cat.avemass = self.intflux[7] * (cat.avesm).to(uf.msun, equivalencies=uf.log10conv)
 				self.tflux = self.intflux[7] * other.nobj

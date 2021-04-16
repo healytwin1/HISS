@@ -26,6 +26,9 @@ msun = [
 	(astun.Jy*astun.km*astun.Mpc*astun.Mpc/astun.s, astun.solMass, lambda x: 1*x, lambda x: 1*x)
 ]
 
+# msun = [
+# 	(astun.km*astun.Mpc*astun.Mpc/astun.s, astun.solMass, lambda x: 1*x, lambda x: 1*x)
+# ]
 
 log10 = [
 	(astun.dex*astun.Msun, astun.Msun, lambda x: 10**x, lambda x: np.log10(x))
@@ -129,13 +132,23 @@ class objSpec():
 			logger.warning(r'Spectrum ID: %s, REJECTED: spectrum is too short'%str(cat.catalogue['Object ID'][n]))
 			return False, cat
 
+	def __getSpecNaNOK(self, spec, cat):
+		if any(np.isnan(s) for s in spec):
+			self.status = 'incomplete'
+			logger.warning(r'Spectrum ID: %s, REJECTED: contains NaNs'%str(cat.catalogue['Object ID'][n]))
+			return False, cat
+		else:
+			return True, cat
+
 
 	def __getSpectrum(self, cat, n, runno):
 		self.objid = cat.catalogue['Object ID'][n]
 		filexist = os.path.isfile(cat.specloc+cat.catalogue['Filename'][n])
 		if filexist == True:
 			try:
+				# print(cat.constan['Object ID'][n])
 				data = astasc.read(cat.specloc+cat.catalogue['Filename'][n], data_start=cat.rowstart)
+				checkNAN, cat = self.__getSpecNaNOK( (data[data.colnames[cat.speccol[0]]]).astype(np.float_), cat)
 				checkZ, cat = self.__getSpectrumZOK(cat, n, runno)
 				checkDV, cat = self.__getSpectrumDVOK((data[data.colnames[cat.speccol[0]]]).astype(np.float_), cat, n)
 				checklen, cat = self.__getSpectrumlenOK((data[data.colnames[cat.speccol[1]]]).astype(np.float_), cat, n)
@@ -143,7 +156,7 @@ class objSpec():
 					checkSM, cat = self.__getStellarMass(cat, n)
 				else:
 					checkSM = True
-				if checkDV and checkZ and checklen and checkSM:
+				if checkDV and checkZ and checklen and checkSM and checkNAN:
 					spec = data[data.colnames[cat.speccol[1]]] * cat.fluxunit / cat.convfactor
 					spec[np.isnan(spec)] = 0.
 					self.origspec = spec.to(astun.Jy)
@@ -192,6 +205,10 @@ class objSpec():
 					noisespec[i] = masked[i % len(masked)]
 					noisespec[int(-(i+1))] = masked[int(-(i+1) % len(masked))]
 				rms = np.std(noisespec)
+				if rms == 0:
+					rms = 1
+				else: pass
+
 				return rms, noisespec
 			else:
 				specv = spec.value
@@ -212,15 +229,22 @@ class objSpec():
 					noisespec[eei] = masked[ssi]
 					noisespec2[eei] = masked2[ssi]
 				rms = np.std(noisespec)
+				if rms == 0:
+					rms = 1
+				else: pass
 				return rms, noisespec, noisespec2		
 
 
 
-	def __calcWeights(self, cat):
+	def __calcWeights(self, cat, n):
 		if self.status == 'incomplete':
 			logger.error("Error calculation on weight calculation for spectrum ID %s"%str(self.objid))
 			return
 		else:
+			if type(self.rms) == np.int:
+				self.rms = self.rms*astun.dimensionless_unscaled
+			else:pass
+
 			if cat.weighting == '1':
 				self.weight = 1.
 			elif cat.weighting == '2':
@@ -238,6 +262,12 @@ class objSpec():
 					self.weight = 1.
 				else:
 					self.weight = (self.dl.value)**2/(self.rms.value**2)
+			elif cat.weighting == '5':
+				self.weight = cat.catalogue['StackWeights'][n]
+			else:
+				self.weight = 1
+
+		return
 
 
 	def __calcShift(self, cat):
@@ -280,7 +310,7 @@ class objSpec():
 			logger.error('Encountered an exception:', exc_info=True)
 			return
 
-		if (catalogue.stackunit == uf.msun) or (catalogue.cluster == True):
+		if (catalogue.stackunit == uf.msun):
 			return massspec, refmassspec
 		elif catalogue.stackunit == uf.gasfrac:
 			massspec, refmassspec = (massspec/self.stellarmass)*uf.gasfrac, (refmassspec/self.stellarmass)*uf.gasfrac
@@ -337,21 +367,27 @@ class objSpec():
 				return cat
 			else:
 				self.__calcShift(cat)
-				self.dl = cat.cosmology.luminosity_distance(self.redshift)
+				if cat.cluster == True:
+					self.dl = cat.clusterDL
+				else:
+					self.dl = cat.cosmology.luminosity_distance(self.redshift)
+
+					
 				if uf.msun == cat.stackunit:
 					self.massspec, self.refmassspec = self.calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec, self.redshift, self.randredshift, self.dl, self.dvkms)
 					self.rms, self.noisespec, self.noisespecmass = self.__calcNoiseRMS(self.shiftorigspec, cat, self.massspec)
 					self.extendspec, self.extendrefspec = self.__calcExtendSpectrum(cat, self.massspec, self.refmassspec, self.noisespecmass)
-					self.__calcWeights(cat)
+					self.__calcWeights(cat, n)
 				elif astun.Jy == cat.stackunit: 
 					self.rms, self.noisespec = self.__calcNoiseRMS(self.shiftorigspec, cat)
 					self.extendspec, self.extendrefspec = self.__calcExtendSpectrum(cat, self.shiftorigspec, self.shiftrefspec, self.noisespec)
-					self.__calcWeights(cat)
+					self.__calcWeights(cat, n)
 				elif uf.gasfrac == cat.stackunit:
 					self.massspec, self.refmassspec = self.calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec, self.redshift, self.randredshift, self.dl, self.dvkms)
+					# self.massspec, self.refmassspec = self.calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec, 0.0231, self.randredshift, 100*astun.Mpc, self.dvkms)
 					self.rms, self.noisespec, self.noisespecmass = self.__calcNoiseRMS(self.shiftorigspec, cat, self.massspec)
 					self.extendspec, self.extendrefspec = self.__calcExtendSpectrum(cat, self.massspec, self.refmassspec, self.noisespecmass)
-					self.__calcWeights(cat)
+					self.__calcWeights(cat, n)
 				else:
 					logger.error("Something went wrong with deciding the stack unit and how to stack")
 					uf.earlyexit(cat)
@@ -364,7 +400,7 @@ class objSpec():
 				intflux = np.sum( intfluxspec.value[startind:endind] )
 
 				if runno == 0:
-					cat.outcatalogue.add_row([ cat.catalogue['Bin Number'][n], self.objid, cat.catalogue['Filename'][n], cat.catalogue['Redshift'][n], cat.catalogue['Redshift Uncertainty'][n], cat.catalogue['Stellar Mass'][n], cat.catalogue['Other Data'][n],  intflux ])
+					cat.outcatalogue.add_row([ cat.catalogue['Bin Number'][n], self.objid, cat.catalogue['Filename'][n], cat.catalogue['Redshift'][n], cat.catalogue['Redshift Uncertainty'][n], cat.catalogue['Stellar Mass'][n], cat.catalogue['Other Data'][n],  intflux,  self.weight])
 				else:
 					h = 0
 		except KeyboardInterrupt:
@@ -395,7 +431,10 @@ class objStack(objSpec):
 	def __add__(self, other):
 		if other.extendspec is None or other.weight == 0.:
 			return self
-		else:			
+		elif any(np.isnan(se) == True for se in other.extendspec):
+			return self
+		else:	
+			# print(other.extendspec)		
 			spec = np.add(self.spec, other.extendspec*other.weight)
 			refspec = np.add(self.refspec, other.extendrefspec*other.weight)
 			weight = self.weightsum + other.weight
