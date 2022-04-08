@@ -1521,15 +1521,15 @@ class anaData(object):
 			cat = self.__callAnalysis(cat)
 			self.intflux[7] = (np.nansum(self.spec[ cat.maskstart: cat.maskend ]))
 			self.tflux = self.intflux[7] * other.nobj
-			if (cat.stackunit == astun.Jy) & (cat.cluster == False):
-				cat.avemass = (2.356E+05 * ( cat.mediandistance.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.medianz)
-			if (cat.stackunit == astun.Jy) & (cat.cluster == True):
-				cat.avemass = (2.356E+05 * ( cat.clusterDL.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.clusterZ)
-			elif cat.stackunit == uf.gasfrac:
-				cat.avemass = self.intflux[7] * (cat.avesm).to(uf.msun, equivalencies=uf.log10conv)
-				self.tflux = self.intflux[7] * other.nobj
-			else:
-				cat.avemass = self.intflux[7]
+# 			if (cat.stackunit == astun.Jy) & (cat.cluster == False):
+# 				cat.avemass = (2.356E+05 * ( cat.mediandistance.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.medianz)
+# 			if (cat.stackunit == astun.Jy) & (cat.cluster == True):
+# 				cat.avemass = (2.356E+05 * ( cat.clusterDL.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.clusterZ)
+# 			elif cat.stackunit == uf.gasfrac:
+# 				cat.avemass = self.intflux[7] * (cat.avesm).to(uf.msun, equivalencies=uf.log10conv)
+# 				self.tflux = self.intflux[7] * other.nobj
+# 			else:
+# 				cat.avemass = self.intflux[7]
 
 			#print(cat.stackunit, cat.avemass, cat.mediandistance, cat.cluster, cat.restdv.value, self.intflux[7])
 
