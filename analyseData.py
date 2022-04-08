@@ -1096,7 +1096,7 @@ class anaData(object):
 				col2 = np.array([self.intflux[7]])
 				col5 = np.array([cat.w50])
 				if (cat.stackunit == astun.Jy):
-					col2 = col2*cat.restdv*cat.stackunit
+					col2 = col2*cat.restdv*cat.stackunit*astun.km/astun.s
 				# elif cat.cluster == True:
 				# 	col2 = col2*uf.msun
 				else:
@@ -1177,6 +1177,7 @@ class anaData(object):
 		thead['AveRMS_1'] = (self.averms1, 'Jy')
 		thead['AveRMS_2'] = (self.averms2, 'Jy')
 		thead['AveSig'] = (self.averagenoise, 'Jy')
+		thead['AveHImass'] = (cat.avemass, 'Msun')
 
 		if cat.rebinstatus == True and cat.uncert == 'n':
 			spec = self.rbspec
