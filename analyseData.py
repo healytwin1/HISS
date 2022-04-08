@@ -1170,6 +1170,16 @@ class anaData(object):
 				logger.info('Saved Integrated Flux to disk.')
 				self.fitparam = [col for col in self.fitparam if col is not None]
 				self.fitparamuncert = [col for col in self.fitparamuncert if col is not None]
+				
+		if (cat.stackunit == astun.Jy) & (cat.cluster == False):
+			cat.avemass = (2.356E+05 * ( cat.mediandistance.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.medianz)
+		if (cat.stackunit == astun.Jy) & (cat.cluster == True):
+			cat.avemass = (2.356E+05 * ( cat.clusterDL.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.clusterZ)
+		elif cat.stackunit == uf.gasfrac:
+			cat.avemass = self.intflux[7] * (cat.avesm).to(uf.msun, equivalencies=uf.log10conv)
+			self.tflux = self.intflux[7] * other.nobj
+		else:
+			cat.avemass = self.intflux[7]
 
 		thead = astfit.Header()
 		thead['N_obj'] = self.nobj
