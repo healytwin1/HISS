@@ -54,6 +54,7 @@ class dispData(anaData):
 		header = dHDU[0].header
 		self.nobj = header['N_OBJ']
 		self.totalmass = header['TFlux']
+		self.avemass = header['AveHImass']
 		spectable = dHDU[1].data
 		self.paramtable = dHDU[3]
 		self.spectralaxis = spectable['Spectral Axis']
