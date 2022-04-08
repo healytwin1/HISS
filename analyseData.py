@@ -1511,9 +1511,9 @@ class anaData(object):
 			self.intflux[7] = (np.nansum(self.spec[ cat.maskstart: cat.maskend ]))
 			self.tflux = self.intflux[7] * other.nobj
 			if (cat.stackunit == astun.Jy) & (cat.cluster == False):
-				cat.avemass = (2.356E+05 * ( cat.mediandistance**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.medianz)
+				cat.avemass = (2.356E+05 * ( cat.mediandistance.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.medianz)
 			if (cat.stackunit == astun.Jy) & (cat.cluster == True):
-				cat.avemass = (2.356E+05 * ( cat.clusterDL**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.clusterZ)
+				cat.avemass = (2.356E+05 * ( cat.clusterDL.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.clusterZ)
 			elif cat.stackunit == uf.gasfrac:
 				cat.avemass = self.intflux[7] * (cat.avesm).to(uf.msun, equivalencies=uf.log10conv)
 				self.tflux = self.intflux[7] * other.nobj
