@@ -1094,7 +1094,10 @@ class anaData(object):
 			names = [self.functions[7]]
 			if uncert == False:
 				col2 = np.array([self.intflux[7]])
-				col5 = np.array([cat.w50])
+				if type(cat.w50) == float:
+					col5 = np.array([cat.w50])
+				else:
+					col5 = np.array([cat.w50.value])
 				if (cat.stackunit == astun.Jy):
 					col2 = col2*cat.restdv*cat.stackunit*astun.km/astun.s
 				# elif cat.cluster == True:
