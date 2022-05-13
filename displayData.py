@@ -104,7 +104,7 @@ class dispData(anaData):
 
 
 	def __printStatistics(self, uncert, cat, spec, specuncert, spectralaxis):
-		if type(self.avemass) != np.float_:
+		if type(self.avemass) != float:
 			self.avemass = (self.avemass).value
 		else:
 			pass
