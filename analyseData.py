@@ -1238,7 +1238,7 @@ class anaData(object):
 				noise = self.stackrms
 				noiseuncert = self.noiseuncert
 		else:
-			print(cat.rebinstatus, cat.uncert)
+			print("line 1241", cat.rebinstatus, cat.uncert)
 
 		# if cat.cluster == True:
 		# 	stackunit = uf.msun
@@ -1526,7 +1526,7 @@ class anaData(object):
 			elif cat.stackunit == uf.msun:
 				cat.avemass = self.intflux[7]
 			else:
-				print(cat.stackunit, cat.avemass, self.runno)
+				print("line 1529", cat.stackunit, cat.avemass, self.runno)
 
 			#print(cat.stackunit, cat.avemass, cat.mediandistance, cat.cluster, cat.restdv.value, self.intflux[7])
 
