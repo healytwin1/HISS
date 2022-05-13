@@ -1173,16 +1173,6 @@ class anaData(object):
 				logger.info('Saved Integrated Flux to disk.')
 				self.fitparam = [col for col in self.fitparam if col is not None]
 				self.fitparamuncert = [col for col in self.fitparamuncert if col is not None]
-				
-# 		if (cat.stackunit == astun.Jy) & (cat.cluster == False):
-# 			cat.avemass = (2.356E+05 * ( cat.mediandistance.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.medianz)
-# 		if (cat.stackunit == astun.Jy) & (cat.cluster == True):
-# 			cat.avemass = (2.356E+05 * ( cat.clusterDL.value**2 ) * (self.intflux[7] * cat.restdv.value) ) / (1. + cat.clusterZ)
-# 		elif cat.stackunit == uf.gasfrac:
-# 			cat.avemass = self.intflux[7] * (cat.avesm).to(uf.msun, equivalencies=uf.log10conv)
-# 			self.tflux = self.intflux[7] * other.nobj
-# 		else:
-# 			cat.avemass = self.intflux[7]
 
 		thead = astfit.Header()
 		thead['N_obj'] = self.nobj
@@ -1192,7 +1182,7 @@ class anaData(object):
 		thead['AveSig'] = (self.averagenoise, 'Jy')
 		thead['AveHImass'] = (cat.avemass, 'Msun')
 
-		if cat.rebinstatus == True and cat.uncert == 'n':
+		if (cat.rebinstatus == True) and (cat.uncert == 'n'):
 			spec = self.rbspec
 			axis = self.rbspectralaxis
 			refspec = self.rbrefspec
@@ -1205,7 +1195,7 @@ class anaData(object):
 				noise = np.zeros(10)
 			else:
 				noise = self.stackrms
-		elif cat.rebinstatus == False and cat.uncert == 'n':
+		elif (cat.rebinstatus == False) and (cat.uncert == 'n'):
 			spec = self.spec
 			axis = self.spectralaxis
 			refspec = self.refspec
@@ -1218,7 +1208,7 @@ class anaData(object):
 				noise = np.zeros(len(spec))
 			else:
 				noise = self.stackrms
-		elif cat.rebinstatus == True and cat.uncert == 'y':
+		elif (cat.rebinstatus == True) and (cat.uncert == 'y'):
 			spec = self.finalspec
 			axis = self.spectralaxis
 			refspec = self.finalrefspec
@@ -1233,7 +1223,7 @@ class anaData(object):
 			else:
 				noise = self.stackrms
 				noiseuncert = self.noiseuncert
-		elif cat.rebinstatus == False and cat.uncert == 'y':
+		elif (cat.rebinstatus == False) and (cat.uncert == 'y'):
 			spec = self.finalspec
 			axis = self.spectralaxis
 			refspec = self.finalrefspec
@@ -1247,6 +1237,8 @@ class anaData(object):
 			else:
 				noise = self.stackrms
 				noiseuncert = self.noiseuncert
+		else:
+			print(cat.rebinstatus, cat.uncert)
 
 		# if cat.cluster == True:
 		# 	stackunit = uf.msun
