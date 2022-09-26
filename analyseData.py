@@ -703,7 +703,7 @@ class anaData(object):
 		if cat.suppress == 'hide':
 			plt.savefig(cat.outloc+'DiagnosticPlot%i_SpectrumCheck_%s%s.pdf'%(num, extra, cat.runtime), bbox_inches='tight', pad_inches=0.2)
 		else:
-			plt.show(False)
+			plt.show(block=False)
 		return
 
 
@@ -1238,13 +1238,10 @@ class anaData(object):
 				noise = self.stackrms
 				noiseuncert = self.noiseuncert
 		else:
-			print("line 1241", cat.rebinstatus, cat.uncert)
-
-		# if cat.cluster == True:
-		# 	stackunit = uf.msun
-		# else:
+			logger.critical('Failed at selecting which save option to choose.', exc_info=True)
+			uf.earlyexit(cat)
+			
 		stackunit = cat.stackunit
-		# 	pass
 
 		## Table 1: Spectrum Information
 		d1 = astfit.Column(name='Stacked Spectrum', format='D', unit=stackunit.to_string(), array=spec)
@@ -1376,7 +1373,7 @@ class anaData(object):
 		if disp == False:
 			plt.savefig(cat.outloc+'StackedSpectrum_'+cat.runtime+'.pdf', format='pdf', bbox_inches='tight', pad_inches=0.2)
 		else:
-			h = 0
+			pass
 
 		## Histogram of integrated flux
 		if uncert == True:
@@ -1499,7 +1496,7 @@ class anaData(object):
 			if disp == False:
 				plt.savefig(cat.outloc+'FluxDistribution_'+cat.runtime+'.pdf', format='pdf', bbox_inches='tight', pad_inches=0.2)
 			else:
-				h = 0
+				pass
 
 		if disp == True:
 			plt.show()
