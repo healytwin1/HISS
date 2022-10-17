@@ -1178,7 +1178,7 @@ class anaData(object):
 		thead['AveRMS_1'] = (self.averms1, 'Jy')
 		thead['AveRMS_2'] = (self.averms2, 'Jy')
 		thead['AveSig'] = (self.averagenoise, 'Jy')
-		thead['AveHImass'] = (cat.avemass, 'Msun')
+		thead['AveHImass'] = (cat.avemass.value, 'Msun')
 
 		if (cat.rebinstatus == True) and (cat.uncert == 'n'):
 			spec = self.rbspec
