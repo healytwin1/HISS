@@ -184,7 +184,8 @@ class objSpec():
 		
 	def __calcRestFrame(self, cat):
 		""" convert the frequency spectrum from observed frame to rest frame """
-		restaxis = self.spectralspec*(1+self.redshift)*self.redshift*astcon.c.to('km/s')/cat.femit
+		vrad = astcon.c.to('km/s') * (1 - self.spectralspec/cat.femit)
+		restaxis = vrad*(1+self.redshift)
 		restflux = self.origspec/(1+self.redshift)
 		
 		return restaxis, restflux
