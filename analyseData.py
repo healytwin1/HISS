@@ -113,10 +113,9 @@ class anaData(object):
 		x = (range(1, len(noiselist)+1, 1))
 		y = noiselist 
 		try:
-			m, c = opt.curve_fit(uf.strlinelog, x, y)[0]
+			m = opt.curve_fit(uf.strlinelog, x, y)[0]
 		except:
 			m = 0
-			c = noiselist[0]
 		return m
 
 
