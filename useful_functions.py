@@ -307,8 +307,8 @@ def checkpath(file_path):
         return
 
 
-def strlinelog(x, m, c):
-    y = m/np.sqrt(x) + c
+def strlinelog(x, m):
+    y = m/np.sqrt(x) 
     return y
 
 ## Functions needed for fitting Gaussian - using the astropy frame work for creating douple and single gaussians
