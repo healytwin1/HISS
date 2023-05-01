@@ -115,7 +115,7 @@ class objSpec():
 		if 0.95*cat.channelwidth < checkdv < 1.05*cat.channelwidth:
 			return True, cat
 		elif 0.9*cat.channelwidth < checkdv < 1.1*cat.channelwidth:
-			logger.warning(r'Spectrum ID: %s, WARNING: Channel width is 5\%-10\% different from expected spectrum channel width'%str(cat.catalogue['Object ID'][n]))
+			logger.warning(r'Spectrum ID: %s, WARNING: Channel width is 5-10percent different from expected spectrum channel width'%str(cat.catalogue['Object ID'][n]))
 			return True, cat
 		else:
 			self.status = 'incomplete'
