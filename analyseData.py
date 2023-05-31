@@ -1176,6 +1176,9 @@ class anaData(object):
 		thead['TFlux'] = (self.tflux, 'units: %s'%(cat.stackunit.to_string()))
 		thead['AveRMS_1'] = (self.averms1, 'Jy')
 		thead['AveRMS_2'] = (self.averms2, 'Jy')
+		if type(self.averagenoise) != float:
+			self.averagenoise = self.averagenoise[0]
+		else: pass
 		thead['AveSig'] = (self.averagenoise, 'Jy')
 		if type(cat.avemass) == astun.quantity.Quantity:
 			thead['AveHImass'] = (cat.avemass.value, 'Msun')
