@@ -1275,13 +1275,13 @@ class anaData(object):
 			thdulist = astfit.HDUList([prihdu,spectable,noisetable,self.paramtable,origtable])
 
 		if cat.uncert == 'n':
-			thdulist.writeto(cat.outloc+'OutputData_'+cat.runtime+'.FITS',clobber=True)
+			thdulist.writeto(cat.outloc+'OutputData_'+cat.runtime+'.FITS',overwrite=True)
 			logger.info('Saved Output Data to disk.')
 		elif cat.uncert == 'y' and self.runno == 0:
-			thdulist.writeto(cat.outloc+'OutputData_runno=0_'+cat.runtime+'.FITS',clobber=True)
+			thdulist.writeto(cat.outloc+'OutputData_runno=0_'+cat.runtime+'.FITS',overwrite=True)
 			logger.info('Saved Output Data to disk.')
 		else:
-			thdulist.writeto(cat.outloc+'OutputData_'+cat.runtime+'.FITS',clobber=True)
+			thdulist.writeto(cat.outloc+'OutputData_'+cat.runtime+'.FITS',overwrite=True)
 			logger.info('Saved Output Data to disk.')
 		return
 
