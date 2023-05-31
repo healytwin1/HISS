@@ -242,7 +242,7 @@ class objSpec():
 			logger.error("Error calculation on weight calculation for spectrum ID %s"%str(self.objid))
 			return
 		else:
-			if type(self.rms) == np.int:
+			if type(self.rms) == int:
 				self.rms = self.rms*astun.dimensionless_unscaled
 			else:pass
 
