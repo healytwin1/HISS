@@ -131,7 +131,7 @@ else:
 def axisunit(cat):
 	if astun.Jy == cat.stackunit:
 		labstr2 = 'Flux density per\ngalaxy (mJy)'
-		labstr3 = 'Total Stacked Flux density ('+cat.stackunit.to_string('latex')+')'
+		labstr3 = 'Total Stacked Flux density (mJy)'
 	elif uf.msun == cat.stackunit:
 		labstr2 = 'Flux density per\ngalaxy ($\mathrm{M_\odot/chan}$)'
 		labstr3 = 'Total Stacked Flux density ($10^8 \mathrm{M_\odot/chan}$)'
