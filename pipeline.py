@@ -1,4 +1,3 @@
-# from __future__ import print_function
 import sys
 h = sys.version_info
 if (sys.version_info < (2, 7)):
@@ -6,9 +5,6 @@ if (sys.version_info < (2, 7)):
 	
 else:
 	pass
-
-
-
 
 import argparse
 parser = argparse.ArgumentParser(description='Initialise and run HI line stacker.')
@@ -30,7 +26,6 @@ if args.suppress == 'hide':
 	progress = None
 else:
 	pass
-	# matplotlib.use('TkAgg')
 
 if args.latex == 'latex':
 	matplotlib.rc('text', usetex=True)
@@ -108,8 +103,6 @@ import logging
 logging.disable(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# os.system("taskset -p 0xff %d" % os.getpid())
-
 warnings.filterwarnings('ignore')
 
 font = {'family': 'serif', 'size': 12}
@@ -151,7 +144,7 @@ def startfigure(cat):
 		ax3 = fig.add_subplot(gs[:,2:])
 		ax4 = fig.add_subplot(gs[2,0:2])
 		plt.subplots_adjust(left=0.09,right=0.97,top=0.97,bottom=0.09, wspace=0.5, hspace=0.3)
-		# plt.suptitle("Progress Window", y=1.01)
+
 		labstr2, labstr3 = axisunit(cat)
 
 		ax2.set_ylabel(labstr2)

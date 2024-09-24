@@ -19,20 +19,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 Msun = astun.def_unit('Msun',astun.Jy*astun.Mpc**2*astun.km/(astun.s) )
-
 c = astcon.c.to('km/s') 
-
-msun = [
-	(astun.Jy*astun.km*astun.Mpc*astun.Mpc/astun.s, astun.solMass, lambda x: 1*x, lambda x: 1*x)
-]
-
-# msun = [
-# 	(astun.km*astun.Mpc*astun.Mpc/astun.s, astun.solMass, lambda x: 1*x, lambda x: 1*x)
-# ]
-
-log10 = [
-	(astun.dex*astun.Msun, astun.Msun, lambda x: 10**x, lambda x: np.log10(x))
-]
+msun = [(astun.Jy*astun.km*astun.Mpc*astun.Mpc/astun.s, astun.solMass, lambda x: 1*x, lambda x: 1*x)]
+log10 = [(astun.dex*astun.Msun, astun.Msun, lambda x: 10**x, lambda x: np.log10(x))]
 
 class objSpec():
 	""" class contronlling each of the spectra,
@@ -99,7 +88,6 @@ class objSpec():
 			return False, cat
 		else:
 			self.stellarmass = (cat.catalogue['Stellar Mass'][n] * cat.catalogue['Stellar Mass'].unit).to(astun.Msun, log10)
-			# logger.info('Logged stellar mass for %s'%str(cat.catalogue['Object ID'][n]))
 			return True, cat
 
 
@@ -146,7 +134,6 @@ class objSpec():
 		filexist = os.path.isfile(cat.specloc+cat.catalogue['Filename'][n])
 		if filexist == True:
 			try:
-				# print(cat.constan['Object ID'][n])
 				data = astasc.read(cat.specloc+cat.catalogue['Filename'][n], data_start=cat.rowstart)
 				checkNAN, cat = self.__getSpecNaNOK( (data[data.colnames[cat.speccol[0]]]).astype(np.float_), cat)
 				checkZ, cat = self.__getSpectrumZOK(cat, n, runno)
@@ -162,8 +149,10 @@ class objSpec():
 					self.origspec = spec.to(astun.Jy)
 					if cat.veltype == 'optical':
 						self.spectralspec = data[data.colnames[cat.speccol[0]]].data*cat.spectralunit 
-					else: 
+					elif cat.veltype == 'radio': 
 						self.spectralspec = data[data.colnames[cat.speccol[0]]].data*(1.+self.redshift)*cat.spectralunit 
+					else:
+						self.spectralspec = data[data.colnames[cat.speccol[0]]].data*cat.spectralunit 
 					return cat
 				else:
 					self.status = 'incomplete'
@@ -299,10 +288,6 @@ class objSpec():
 			
 
 	def calcMassConversion(self, catalogue, spec, refspec, redshift, randredshift, dl, dv):
-		# if self.status == 'incomplete':
-		# 	logger.error('Error on conversion to mass spectrum for spectrum %s'%str(self.objid))
-		# 	return
-		# else:
 		try:
 			massspec = (2.356E+05 * spec * dl**2 * dv/(1.+redshift)).to(astun.solMass, msun)
 			refmassspec = (2.356E+05 * refspec * dl**2 * dv/(1.+randredshift)).to(astun.solMass, msun)
@@ -346,8 +331,6 @@ class objSpec():
 				extendspec[-(i+1)] = nspec[-(i+1) % nl]
 				extendrefspec[i] = nspec[i % nl]
 				extendrefspec[-(i+1)] = nspec[-(i+1) % nl]
-			# extendspec[-1] = nspec[i%nl]
-			# extendrefspec[-1] = nspec[i%nl]
 			return extendspec, extendrefspec
 
 	
@@ -372,8 +355,7 @@ class objSpec():
 					self.dl = cat.clusterDL
 				else:
 					self.dl = cat.cosmology.luminosity_distance(self.redshift)
-
-					
+				
 				if uf.msun == cat.stackunit:
 					self.massspec, self.refmassspec = self.calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec, self.redshift, self.randredshift, self.dl, self.dvkms)
 					self.rms, self.noisespec, self.noisespecmass = self.__calcNoiseRMS(self.shiftorigspec, cat, self.massspec)
@@ -385,7 +367,6 @@ class objSpec():
 					self.__calcWeights(cat, n)
 				elif uf.gasfrac == cat.stackunit:
 					self.massspec, self.refmassspec = self.calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec, self.redshift, self.randredshift, self.dl, self.dvkms)
-					# self.massspec, self.refmassspec = self.calcMassConversion(cat, self.shiftorigspec, self.shiftrefspec, 0.0231, self.randredshift, 100*astun.Mpc, self.dvkms)
 					self.rms, self.noisespec, self.noisespecmass = self.__calcNoiseRMS(self.shiftorigspec, cat, self.massspec)
 					self.extendspec, self.extendrefspec = self.__calcExtendSpectrum(cat, self.massspec, self.refmassspec, self.noisespecmass)
 					self.__calcWeights(cat, n)
