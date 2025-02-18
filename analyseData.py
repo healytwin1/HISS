@@ -626,7 +626,7 @@ class anaData(object):
 
 	def areaabovenoise(self, ydata, noise, cat):
 		if cat.linetype == 'emission':
-		    y = ydata - noise
+			y = ydata - noise
 		else:
 			y = (-1)*ydata - noise
 		use = np.where(y < 0.)
@@ -1360,8 +1360,9 @@ class anaData(object):
 		plt.xticks(xx,ll)
 		plt.xlim([spectral[0],spectral[-1]])
 		plt.axhline(0, color='#2E2E2E', ls='--')
-		plt.errorbar(spectral, spec*conv, yerr=specuncert*conv, ecolor='k', ls='-', color='k', marker='.', label='Stacked Spectrum')
-		plt.plot(spectral, refspec*conv, color='grey',ls='-', marker='.', label='Reference Spectrum')
+		plt.errorbar(spectral, spec*conv, yerr=specuncert*conv, ecolor='k', ls='', color='k', marker='none')
+		plt.step(spectral, spec*conv, color='k', ls='-', label='Stacked Spectrum')
+		plt.step(spectral, refspec*conv, color='grey',ls='-', marker='.', label='Reference Spectrum')
 		plt.xlabel(r'Relative Velocity (km/s)')
 		if '4' in cat.optnum or '4.' in cat.optnum:			
 			h=0

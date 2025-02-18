@@ -223,7 +223,8 @@ class dispData(anaData):
 			ax2.set_yscale('log')
 			ax2.set_xlim(0.9, self.nobj+0.1*self.nobj)
 			ax2.set_ylim(0.9*min(self.stackrms),1.2*max(self.stackrms))
-			ax1.plot(spectral, refspec*conv, color='grey',ls='-', marker='.', label='Reference Spectrum')
+
+			ax1.step(spectral, refspec*conv, color='grey',ls='-', label='Reference Spectrum')
 			
 		## stacked spectrum
 		x = np.linspace(spectral[0],spectral[-1],10000)
@@ -236,7 +237,8 @@ class dispData(anaData):
 		ax1.set_xticklabels(ll)
 		ax1.set_xlim([spectral[0],spectral[-1]])
 		ax1.axhline(0, color='#2E2E2E', ls='--')
-		ax1.errorbar(spectral, spec*conv, yerr=specuncert*conv, ecolor='k', ls='-', color='k', marker='.', label='Stacked Spectrum')
+		ax1.errorbar(spectral, spec*conv, yerr=specuncert*conv, ecolor='k', ls='none', marker='none')
+		ax1.step(spectral, spec*conv, ls='-', color='k', label='Stacked Spectrum')
 		if '4' in cat.optnum or '4.' in cat.optnum:			
 			h=0
 		else:
