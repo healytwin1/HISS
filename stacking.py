@@ -29,15 +29,6 @@ cosmo = astcos.FlatLambdaCDM(70, 0.3)
 
 
 fullcat = astasc.read('../Data/Coma/StackingCatalogues/Coma_fullsample_19October2019.csv')
-fullcat = fullcat[fullcat['hidata'] == 1]
-
-
-fullcat['T'][fullcat['Morphs'] == 'S0'] = 0
-fullcat['T'][fullcat['Morphs'] == 'L'] = 1
-fullcat['T'][fullcat['Morphs'] == 'E'] = 2
-fullcat['T'][fullcat['Morphs'] == 'U'] = 3
-fullcat['T'][(fullcat['Morphs'] == 'I') & (fullcat['gmag']-fullcat['rmag'] > 0.6)] = 4
-fullcat['T'][(fullcat['Morphs'] == 'I') & (fullcat['gmag']-fullcat['rmag'] <= 0.6)] = 5
 
 config = """{
 "#": "json does not have comments, so the '#' entries are comment placeholders",
@@ -80,27 +71,6 @@ config = """{
 }
 	"""
 
-units = {
-	1: 'flux',
-	3: 'gas',
-}
-
-
-subsamples = {
-	# 'nondetections_all': ['detected', 0, '20', '""', 1, 'n', '""', '""', '["4"]', '400.0', 'false'], ## column name to cut catalogue | value to cut | stellar mass column | other data column | stack unit | bin YN | BinInfo | Bins | analysis options | max width | rebinstatus
-	# 'morphologies': ['detected', 0, '20', '33', 1, 'y', '["Other Data", 1, -0.5, 5.5]', '[-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false]' ],
-	# 'stellarmass': ['detected', 0, '20', '""', 1, 'y', '["Stellar Mass", 1, 6, 12]', '[6, 7, 8, 9, 10, 11, 12]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false]' ],
-	# 'stellarmassfullcat': ['hidata', 1, '20', '""', 1, 'y', '["Stellar Mass", 1, 6, 12]', '[6, 7, 8, 9, 10, 11, 12]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false]' ],
-	# 'hideficiency': ['detected', 0, '31', '20', 3, 'y', '["Other Data", 1, 6, 12]', '[6, 7, 8, 9, 10, 11, 12]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false]' ],,
-	# 'substructure': ['detected', 0, '31', '18', 1, 'y', '["Other Data", 1, 0.5, 15.5]', '[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]' ],
-	# 'substructureFC': ['hidata', 1, '31', '18', 1, 'y', '["Other Data", 1, 0.5, 15.5]', '[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]' ]
-
-	# 'xray': ['detected', 0, '31', '40', 3, 'y', '["Other Data", 1e-4, 0, 0.002]', '[0, 3e-5, 5e-5, 7e-5, 1e-4, 0.0002, 0.0004, 0.001, 0.002]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false, false, false]' ],
-	# 'size': ['detected', 0, '31', '13', 3, 'y', '["Other Data", 5, 0, 100]', '[1, 5, 10, 15, 20, 25, 30, 35, 100]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false, false, false]' ],
-	# 'substructure': ['detected', 0, '31', '18', 3, 'y', '["Other Data", 1, 0.5, 15.5]', '[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]' ],
-	# 'substructureFC': ['hidata', 1, '31', '18', 3, 'y', '["Other Data", 1, 0.5, 15.5]', '[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]' ]
-	# 'morphologies': ['detected', 0, '31', '33', 3, 'y', '["Other Data", 1, -0.5, 5.5]', '[-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5]', '[["4"], ["4"], ["4"], ["4"], ["4"], ["4"]]', '[400.0, 400.0, 400.0, 400.0, 400.0, 400.0]' , '[false, false, false, false, false, false]' ]
-}
 
 for sample in subsamples.keys():
 	tempcat = fullcat.copy()

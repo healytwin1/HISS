@@ -284,8 +284,8 @@ class inputCatalogue(object):
 				choice = config['SpectrumFluxUnit']
 			else:
 				print ("\nWhat are the flux denisty units of your spectra?\n\t1. Jansky (Jy)\n\t2. Milli Jansky (mJy)\n\t3. Micro Jansky (uJy)\n\t4. Jansky/beam (Jy/beam)\n\t5. Milli Jansky/beam (mJy/beam)\n\t6. Micro Jansky/beam (uJy/beam)")
-				choice = input('Please enter the number of the applicable units: ')
-			if type(choice) != int:
+				choice = eval(input('Please enter the number of the applicable units: '))
+			if (type(choice) != int) and (type(choice) != float):
 				print ('Please only select one unit.')
 				self.__getFluxUnits(None)
 			elif choice in [1,2,3]:
@@ -317,10 +317,11 @@ class inputCatalogue(object):
 			else:
 				print("\nWhat units do you want your final stacked profile to have?\n\t1. Jansky (Jy)\n\t2. Solar Masses (Msun)\n\t3. Gas Fraction (Msun/Msun)\n\t4. Solar Masses (Msun), stack in Jy [recommend for clusters]")
 				choice = eval(input('Please enter the number of the applicable units: '))
-			if (type(choice) != int) :
+			if (type(choice) != float) and (type(choice) != int):
 				print ('Please only select one unit.')
 				self.__getStackUnits(None)
 			else:
+				choice = int(choice)
 				options = [astun.Jy, uf.msun, uf.gasfrac, astun.Jy]
 				self.stackunit = options[int(choice-1)]
 				if choice == 4:
@@ -408,7 +409,7 @@ class inputCatalogue(object):
 			if uf.checkkeys(config, 'SpectrumColumns'):
 				self.speccol = config['SpectrumColumns']
 			else:
-				self.speccol = input("Please enter the column numbers of the spectral axis and flux (the column number of the first column is 0).\nThe numbers should be separated by a ',' e.g. 0,1: ")
+				self.speccol = eval(input("Please enter the column numbers of the spectral axis and flux (the column number of the first column is 0).\nThe numbers should be separated by a ',' e.g. 0,1: "))
 			if len(self.speccol) != 2:
 				print ('You need to enter two column numbers. Please try again.\n')
 				self.__getSpectrumColumns(config=False, data=None)
@@ -432,7 +433,7 @@ class inputCatalogue(object):
 				H0 = input('Please enter the Hubble constant (H0) in units of km/s/Mpc: ')
 				Om0 = input('Please enter the Omega matter (Om0): ')
 			self.cosmology = astcos.FlatLambdaCDM(H0, Om0)
-			logger.info('Cosmology: H0 = %.1f %s, Om0 = %.3f'%(self.cosmology.H0.value, self.cosmology.H0.unit.to_string(), self.cosmology.Om0))
+			logger.info('Cosmology: H0 = {h0}, Om0 = {om0}'.format(h0=self.cosmology.H0, om0=self.cosmology.Om0))
 		except KeyboardInterrupt:
 			raise uf.exit(self)
 		except SystemExit:
@@ -463,7 +464,7 @@ class inputCatalogue(object):
 				self.cluster = vals[val]
 			else:
 				val = input('Are you stacking a galaxy cluster [True/False]: ') 
-				val = val.lower()
+				val = val.lower()[0]
 				self.cluster = vals[val]
 
 			if self.cluster == True:
@@ -477,7 +478,7 @@ class inputCatalogue(object):
 					val = eval(input('Enter the cluster redshift: '))
 					self.clusterZ = val
 				self.clusterDL = self.cosmology.luminosity_distance(self.clusterZ)
-				logger.info('Stacking galaxy cluster at z = %.4f (Dl = %.1f Mpc)'%(self.clusterZ, self.clusterDL.value))
+				logger.info('Stacking galaxy cluster at z = {redshift} (Dl = {dlambda} Mpc)'.format(redshift=self.clusterZ, dlambda=self.clusterDL))
 			else:
 				logger.info('No galaxy cluster in this sample.')
 		except KeyboardInterrupt:
@@ -495,7 +496,7 @@ class inputCatalogue(object):
 				self.maxgalw = config['GalaxyWidth'] * astun.km/astun.s
 			else:
 				self.maxgalw = input('Enter maximum galaxy width in km/s: ') * astun.km/astun.s
-			logger.info('Maximum galaxy width = %i %s'%(self.maxgalw.value, self.maxgalw.unit.to_string()))
+			logger.info('Maximum galaxy width = {maxgalw} km/s'.format(maxgalw=self.maxgalw ))
 		except KeyboardInterrupt:
 			raise uf.exit(self)
 		except SystemExit:
@@ -534,7 +535,7 @@ class inputCatalogue(object):
 				self.__getMaxLenSpectrum(config=None)
 			else:
 				self.maxstackw = maxstackw
-			logger.info('Length of stacked spectrum: %i %s'%(self.maxstackw.value, self.maxstackw.unit.to_string()))
+			logger.info('Length of stacked spectrum: {maxstackw} km/s'.format(maxstackw=self.maxstackw))
 		except (KeyboardInterrupt, SystemExit):
 			uf.exit(self)
 		except: 
@@ -605,7 +606,7 @@ class inputCatalogue(object):
 			self.randuz = np.multiply(unc, np.random.randn(len(self.catalogue), self.mc))
 
 		logger.info('Median redshift: %f'%self.medianz)
-		logger.info('Rest channel width: %.3g %s'%(self.restdv.value, self.restdv.unit.to_string()))
+		logger.info('Rest channel width: {restdv}'.format(restdv=self.restdv))
 		logger.info('Length of spectrum mask: %i'%self.mask)
 		logger.info('Number of channels in stacked spectrum: %i'%self.exspeclen)
 		logger.info('Number of catalogue entries: %i'%self.numcatspec)
@@ -682,7 +683,7 @@ class inputCatalogue(object):
 		self.__getChannelWidth(config)
 		logger.info('Spectrum flux units: %s'%self.fluxunit.to_string())
 		logger.info('Spectrum axis units: %s'%self.spectralunit.to_string())
-		logger.info('Spectrum channel width: %.3g %s'%(self.channelwidth.value, self.channelwidth.unit.to_string()))
+		logger.info('Spectrum channel width: {chanwidth}'.format(chanwidth=self.channelwidth))
 
 		if config is None:
 			print ('\nThe following settings relate to the spectra to be stacked.')
@@ -698,8 +699,8 @@ class inputCatalogue(object):
 
 		try:
 			self.__checkConfig(config)
-			self.__callOptionalUser(config)
 			self.__callCriticalUser(config)
+			self.__callOptionalUser(config)
 			self.__calcPrivate()
 		except (SystemExit, KeyboardInterrupt):
 			uf.exit(self)
