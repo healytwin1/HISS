@@ -259,15 +259,9 @@ class objSpec():
 				else:
 					self.weight = 1./(self.rms.value**2)
 			elif cat.weighting == '4':
-				if self.rms.value == 0.:
-					self.weight = 1.
-				else:
-					self.weight = (self.dl.value)**2/(self.rms.value**2)
-			elif cat.weighting == '5':
 				self.weight = cat.catalogue['StackWeights'][n]
 			else:
 				self.weight = 1
-
 		return
 
 

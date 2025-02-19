@@ -12,7 +12,7 @@ else:
 
 import argparse
 parser = argparse.ArgumentParser(description='Initialise and run HI line stacker.')
-parser.add_argument('-f','--file', required=False, help='Filename of configuration file.', action='store', nargs=1, default=None, metavar='<filepath+filename>', dest='config')
+parser.add_argument('-f','--file', required=True, help='Filename of configuration file.', action='store', nargs=1, default=None, metavar='<filepath+filename>', dest='config')
 parser.add_argument('-m','--multi', help='Option to use multiprocessing module to run the uncertainty calculation. Need at least 8Gb of RAM to run this mode.', action='store_const', const='multi', default=None, required=False, metavar='MultiProcessing', dest='multiop')
 parser.add_argument('-d','--display', help='Option to display progress window during the stacking process.', action='store_const', const='progress', default=None, required=False, metavar='Progress Window', dest='progress')
 parser.add_argument('-p','--saveprogress', help='Option to save progress window during the stacking process.', action='store_const', const='save', default=None, required=False, metavar='Progress Window', dest='saveprogress')

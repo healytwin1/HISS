@@ -135,15 +135,12 @@ class inputCatalogue(object):
 	def __get_astropy_catalogue(self, config):
 		print ("Initialising the catalogue file.")
 		logger.info('Initialising the catalogue file.')
-
-		if uf.checkkeys(config, 'CatalogueFilename'):
-			self.catfilename = config['CatalogueFilename']
-		else:
-			self.catfilename = input('Enter location and filename of catalogue file: ')
-
-		while not os.path.isfile(self.catfilename):
+		self.catfilename = config['CatalogueFilename']
+		if not os.path.isfile(self.catfilename):
 			print ('The catalogue filename and location you have given does not exist.\n')
-			self.catfilename = input('Enter location and filename of catalogue file: ')
+			logger.critical("Catalogue location {catfile} does not exist".format(catfile=self.catfilename))
+			print("Catalogue location {catfile} does not exist".format(catfile=self.catfilename))
+			raise sys.exit()
 		try:
 			filetable = astasc.read(self.catfilename) 
 		except KeyboardInterrupt:
@@ -154,15 +151,7 @@ class inputCatalogue(object):
 			logger.critical("Did not recognise the catalogue file data type.")
 			raise sys.exit()
 
-		if uf.checkkeys(config, 'CatalogueColumnNumbers'):
-			catcols = config['CatalogueColumnNumbers']
-		else:
-			catcols = None
-			filetablenames = filetable.colnames
-			print ('\nThe following columns are available:')
-			for u in range(len(filetablenames)):
-				print ('%i: %s'%(u, filetablenames[u]))
-				
+		catcols = config['CatalogueColumnNumbers']				
 		colnames = ['Object ID', 'Filename', 'Redshift', 'Redshift Uncertainty', 'Stellar Mass', 'Other Data', 'StackWeights']
 		catalogue = asttab.Table(names=['Dud'], dtype=['f8'], masked=True, data=[np.zeros(len(filetable))])
 
@@ -205,16 +194,10 @@ class inputCatalogue(object):
 ### the get methods for the "Critical User Inputs"
 	def __getOutputLocation(self, config):
 		try:
-			if uf.checkkeys(config, 'OutputLocation'):
-				self.outloc = config['OutputLocation']
-			else:
-				self.outloc = input('Enter the full location to where you would like the output saved: ')
-			if self.outloc[-1] != '/':
-				self.outloc +='/'
-				uf.checkpath(self.outloc)
-			else:
-				uf.checkpath(self.outloc)
-			logger.info('Output location: %s'%self.outloc)
+			self.outloc = config['OutputLocation']
+			if self.outloc[-1] != '/': self.outloc +='/'
+			uf.checkpath(self.outloc)
+			logger.info('Output location: {location}'.format(self.outloc))
 		except KeyboardInterrupt:
 			uf.exit(self)
 		except SystemExit:
