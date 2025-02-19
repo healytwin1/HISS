@@ -148,10 +148,10 @@ class objSpec():
 			try:
 				# print(cat.constan['Object ID'][n])
 				data = astasc.read(cat.specloc+cat.catalogue['Filename'][n], data_start=cat.rowstart)
-				checkNAN, cat = self.__getSpecNaNOK( (data[data.colnames[cat.speccol[0]]]).astype(np.float_), cat)
+				checkNAN, cat = self.__getSpecNaNOK( (data[data.colnames[cat.speccol[0]]]).astype(float), cat)
 				checkZ, cat = self.__getSpectrumZOK(cat, n, runno)
-				checkDV, cat = self.__getSpectrumDVOK((data[data.colnames[cat.speccol[0]]]).astype(np.float_), cat, n)
-				checklen, cat = self.__getSpectrumlenOK((data[data.colnames[cat.speccol[1]]]).astype(np.float_), cat, n)
+				checkDV, cat = self.__getSpectrumDVOK((data[data.colnames[cat.speccol[0]]]).astype(float), cat, n)
+				checklen, cat = self.__getSpectrumlenOK((data[data.colnames[cat.speccol[1]]]).astype(float), cat, n)
 				if cat.stackunit == uf.gasfrac:
 					checkSM, cat = self.__getStellarMass(cat, n)
 				else:

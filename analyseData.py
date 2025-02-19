@@ -679,12 +679,12 @@ class anaData(object):
 
 		basicax.set_ylabel(ystring)
 		if cat.clean == 'clean':
-			basicax.plot(spectral.value, spec*conv, 'k-', label='Stacked Spectrum')
+			basicax.step(spectral.value, spec*conv, color='k', ls='-', label='Stacked Spectrum')
 			basicax.plot(spectral.value, sgauss*conv, color='mediumvioletred', ls='-', label='Fitted Single Gaussian')
 		else:
 			basicax.axhspan(ymin=-noise*conv, ymax=noise*conv, alpha=0.5, facecolor='lightskyblue', ec='lightskyblue', label=r'1$\sigma$ noise')
-			basicax.plot(spectral.value, spec*conv, 'k-', label='Stacked Spectrum')
-			basicax.plot(spectral.value, refspec*conv, color='gray', ls='--', label='Reference Spectrum', lw=1)
+			basicax.step(spectral.value, spec*conv, color='k', ls='-', label='Stacked Spectrum')
+			basicax.step(spectral.value, refspec*conv, color='gray', ls='--', label='Reference Spectrum', lw=1)
 			basicax.plot(spectral.value, sgauss*conv, color='mediumvioletred', ls='-', label='Fitted Single Gaussian')
 		basicax.set_xlim(spectral.value[0], spectral.value[-1])
 		basicax.legend(loc='lower center',fontsize=8, numpoints=1, ncol=3)
